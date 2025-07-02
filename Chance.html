@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chance Time Simulator</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+    .card {
+      border: 1px solid #ccc;
+      padding: 1em;
+      margin: 1em auto;
+      border-radius: 10px;
+      width: 450px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .flex {
+      display: flex;
+      justify-content: center;
+      gap: 1em;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 0.5em 1em;
+      margin-top: 0.5em;
+      cursor: pointer;
+    }
+    .input {
+      padding: 0.5em;
+      width: 200px;
+    }
+    .display-text {
+      font-size: 1.5em;
+      margin: 0.5em 0;
+    }
+    .player-img, .item-img {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Jahrio Party Chance Time</h1>
+
+  <div id="setup" class="card">
+    <h2>Enter Player Info</h2>
+    <input id="nameInput" class="input" placeholder="Enter name" /><br />
+    <input id="imageInput" class="input" type="file" accept="image/*" />
+    <input id="imageUrlInput" class="input" placeholder="or paste image URL" /><br />
+    <button onclick="addPlayer()" class="btn">Add</button>
+    <div id="playerList" class="flex" style="margin-top: 1em;"></div>
+    <button onclick="startGame()" id="startBtn" class="btn" style="display: none;">Start Chance Time!</button>
+  </div>
+
+  <div id="game" style="display: none;">
+    <div class="flex">
+      <div class="card">
+        <h3>Left Player</h3>
+        <div id="leftDisplay" class="display-text">???</div>
+        <img id="leftImage" class="player-img" style="display:none;" />
+        <button onclick="startSpin('left')" class="btn" id="leftStart">Start</button>
+        <button onclick="stopSpin('left')" class="btn" id="leftStop" style="display: none;">Stop</button>
+      </div>
+
+      <div class="card">
+        <h3>Item</h3>
+        <div id="itemDisplay" class="display-text">???</div>
+        <img id="itemImage" class="item-img" style="display:none;" />
+        <button onclick="startSpin('item')" class="btn" id="itemStart">Start</button>
+        <button onclick="stopSpin('item')" class="btn" id="itemStop" style="display: none;">Stop</button>
+      </div>
+
+      <div class="card">
+        <h3>Right Player</h3>
+        <div id="rightDisplay" class="display-text">???</div>
+        <img id="rightImage" class="player-img" style="display:none;" />
+        <button onclick="startSpin('right')" class="btn" id="rightStart">Start</button>
+        <button onclick="stopSpin('right')" class="btn" id="rightStop" style="display: none;">Stop</button>
+      </div>
+    </div>
+
+    <div id="resultCard" class="card" style="display: none;">
+      <h3>Result</h3>
+      <div id="resultText" class="display-text"></div>
+      <button onclick="reroll()" class="btn">Reroll</button>
+    </div>
+  </div>
+
+  <script>
+    const options = [
+      { type: 'coins', amount: 3 },
+      { type: 'coins', amount: 20 },
+      { type: 'coins', amount: 30 },
+      { type: 'stars', amount: 1 },
+      { type: 'all', item: 'coins' },
+      { type: 'all', item: 'stars' },
+      { type: 'all', item: 'both' }
+    ];
+    const directions = ['←', '→'];
+    const players = [];
+    const selection = {};
+    const display = {};
+    const spinners = {};
+    const intervals = {};
+
+    function addPlayer() {
+      const name = document.getElementById('nameInput').value.trim();
+      const file = document.getElementById('imageInput').files[0];
+      const url = document.getElementById('imageUrlInput').value.trim();
+      if (!name || players.find(p => p.name === name)) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const image = e.target.result;
+        players.push({ name, image });
+        displayPlayerList();
+      };
+
+      if (file) {
+        reader.readAsDataURL(file);
+      } else {
+        const image = url || '';
+        players.push({ name, image });
+        displayPlayerList();
+      }
+
+      document.getElementById('nameInput').value = '';
+      document.getElementById('imageInput').value = '';
+      document.getElementById('imageUrlInput').value = '';
+    }
+
+    function displayPlayerList() {
+      const container = document.getElementById('playerList');
+      container.innerHTML = '';
+      players.forEach(p => {
+        const div = document.createElement('div');
+        div.innerHTML = `<strong>${p.name}</strong><br><img src="${p.image}" style="width:40px;height:40px;border-radius:50%;">`;
+        container.appendChild(div);
+      });
+      document.getElementById('startBtn').style.display = players.length >= 2 ? 'inline-block' : 'none';
+    }
+
+    function startGame() {
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+    }
+
+    function reroll() {
+      document.getElementById('resultCard').style.display = 'none';
+      ['left', 'right', 'item'].forEach((field) => {
+        selection[field] = undefined;
+        display[field] = '???';
+        document.getElementById(`${field}Display`).textContent = '???';
+        const img = document.getElementById(`${field}Image`);
+        if (img) {
+          img.style.display = 'none';
+          img.classList.remove('spinning');
+        }
+        document.getElementById(`${field}Start`).style.display = 'inline-block';
+        document.getElementById(`${field}Stop`).style.display = 'none';
+      });
+    }
+
+    function getItemImageFilename(label) {
+      if (label.startsWith('↔')) {
+        if (label.includes('both')) return '120px-Exchange_coins_and_Stars_Chance_Time_MPS.png';
+        if (label.includes('coins')) return '120px-Exchange_Coins_Chance_Time_MPS.png';
+        if (label.includes('stars')) return '120px-Exchange_Stars_Chance_Time_MPS.png';
+      } else {
+        const [dir, amount, type] = label.split(' ');
+        let capitalType = type.charAt(0).toUpperCase() + type.slice(1);
+        if (capitalType === 'Stars') capitalType = 'Star';
+        return `120px-${dir === '←' ? 'Left' : 'Right'}_${amount}_${capitalType}_Chance_Time_MPS.png`;
+      }
+      return '';
+    }
+
+    function startSpin(field) {
+      if (spinners[field]) return;
+      spinners[field] = true;
+      document.getElementById(`${field}Start`).style.display = 'none';
+      document.getElementById(`${field}Stop`).style.display = 'inline-block';
+      document.getElementById(`${field}Image`).classList.add('spinning');
+
+      intervals[field] = setInterval(() => {
+        if (field === 'item') {
+          const opt = options[Math.floor(Math.random() * options.length)];
+          let label;
+          if (opt.type === 'all') {
+            label = `↔ all ${opt.item}`;
+          } else {
+            const dir = directions[Math.floor(Math.random() * directions.length)];
+            const plural = opt.amount === 1 ? opt.type.slice(0, -1) : opt.type;
+            label = `${dir} ${opt.amount} ${plural}`;
+          }
+          display.item = label;
+          document.getElementById('itemDisplay').textContent = label;
+          const filename = getItemImageFilename(label);
+          document.getElementById('itemImage').src = `Images/${filename}`;
+          document.getElementById('itemImage').style.display = 'inline-block';
+        } else {
+          const exclude = field === 'left' && selection.right ? [selection.right.name] : field === 'right' && selection.left ? [selection.left.name] : [];
+          let candidate;
+          do {
+            candidate = players[Math.floor(Math.random() * players.length)];
+          } while (exclude.includes(candidate.name));
+          display[field] = candidate;
+          document.getElementById(`${field}Display`).textContent = candidate.name;
+          document.getElementById(`${field}Image`).src = candidate.image || '';
+          document.getElementById(`${field}Image`).style.display = candidate.image ? 'inline-block' : 'none';
+        }
+      }, 100);
+    }
+
+    function stopSpin(field) {
+      clearInterval(intervals[field]);
+      spinners[field] = false;
+      document.getElementById(`${field}Stop`).style.display = 'none';
+      document.getElementById(`${field}Image`).classList.remove('spinning');
+
+      if (field === 'item') {
+        const label = display.item;
+        if (label.startsWith('↔')) {
+          const type = label.split(' ')[2];
+          selection.item = { type: 'all', item: type };
+        } else {
+          const parts = label.split(' ');
+          const dir = parts[0];
+          const amount = parseInt(parts[1]);
+          const type = parts[2];
+          selection.item = { type, amount, direction: dir };
+        }
+        selection.itemLabel = label;
+      } else {
+        selection[field] = display[field];
+      }
+
+      if (selection.left && selection.right && selection.item) {
+        const { left, right, item } = selection;
+        let text = '';
+        if (item.type === 'all') {
+          const action = item.item === 'both' ? 'all coins and stars' : `all ${item.item}`;
+          text = `${left.name} and ${right.name} swap ${action}.`;
+        } else {
+          const from = item.direction === '←' ? right.name : left.name;
+          const to = item.direction === '←' ? left.name : right.name;
+          text = `${from} gives ${item.amount} ${item.amount === 1 && item.type === 'star' ? 'star' : item.type} to ${to}.`;
+        }
+        document.getElementById('resultText').textContent = text;
+        document.getElementById('resultCard').style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>
