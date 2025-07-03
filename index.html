@@ -210,6 +210,18 @@
       color:#fff; cursor:pointer;
     }
     .minigame-card button:hover { background:#666; }
+	.option-slot {
+	  position: absolute;
+	  top: 8px;
+	  right: 8px;
+	  width: 40px;
+	  height: 40px;
+	  border: 1px solid #fff;
+	  border-radius: 50%;
+	  background-size: contain;
+	  cursor: pointer;
+	}
+
     /* Stats */
     #statsButton {
       position:fixed; bottom:10px; right:10px;
@@ -237,6 +249,15 @@
     .player-stats h4 { margin:0 0 6px; }
     .player-stats ul { list-style:none; padding:0; margin:0; }
     .player-stats li { margin:2px 0; font-size:0.9em; }
+	.stat-high {
+  color: #00ff00; /* bright green */
+  font-weight: bold;
+}
+.stat-low {
+  color: #ff4444; /* bright red */
+  font-weight: bold;
+}
+
   </style>
 </head>
 <body>
@@ -345,6 +366,46 @@
       <button id="winnersSubmit">Done</button>
     </div>
   </div>
+  
+<div id="bonusModal" class="minigame-modal" style="display:none;">
+  <div class="minigame-card" style="width:400px; max-width:90vw;">
+    <h2>⭐ Bonus Stars!</h2>
+    <div id="bonusContent" style="margin: 12px 0;"></div>
+    <button id="bonusOkBtn">OK</button>
+  </div>
+</div>
+<!-- Really Lucky Wheel Modal -->
+<div id="luckyWheelModal" class="minigame-modal" style="display:none;">
+  <div class="minigame-card" style="width:300px; max-width:90vw;">
+    <h2>🎡 Really Lucky Spin!</h2>
+    <div id="wheelSpinner" style="margin:20px 0; height:80px; line-height:80px; font-size:1.5em; font-weight:bold;"></div>
+    <button id="stopWheelBtn">Stop</button>
+  </div>
+</div>
+<!-- Debug Menu Button (hidden by default) -->
+<button id="debugButton" style="
+  position:fixed; top:10px; right:10px;
+  background:#f39c12; color:#fff; border:none;
+  border-radius:6px; padding:6px 10px; cursor:pointer;
+  z-index:1002; display:none;">
+  🛠️ Debug
+</button>
+
+<!-- Debug Menu Modal -->
+<div id="debugModal" class="minigame-modal" style="display:none;">
+  <div class="minigame-card" style="width:400px; max-width:90vw;">
+    <h2>🛠️ Debug Menu</h2>
+    <div style="text-align:left;">
+      <button id="editStatsBtn" style="width:100%; margin:4px 0;">📊 Edit Player Stats</button>
+      <button id="setTurnBtn" style="width:100%; margin:4px 0;">⏳ Set Turn</button>
+      <button id="endGameBtn" style="width:100%; margin:4px 0;">🏁 End Game</button>
+      <button id="forceMinigameBtn" style="width:100%; margin:4px 0;">🎮 Force Minigame Choice</button>
+      <button id="setFinal5Btn" style="width:100%; margin:4px 0;">⭐ Set Last 5 Turns Event</button>
+    </div>
+    <button id="closeDebugBtn" style="margin-top:10px;">Close</button>
+  </div>
+</div>
+
 
   <!-- Chance Time -->
   <div id="chanceOverlay" class="chance-overlay" style="display:none">
@@ -424,6 +485,7 @@
   <!-- —————————————————————————————————————————————————————————————— -->
   <!-- 1) GLOBAL CONSTANTS & HELPERS -->
   <script>
+
 // ─── MINIGAMES ───────────────────────────────────────────
 const MINIGAMES = {
   "FFA": [
@@ -734,34 +796,46 @@ const MINIGAMES = {
       }
 
       // NEXT TURN
-      function nextTurn(){
-        const rv=+document.querySelector(".player-card.active input.turn-roll").value;
-        players[currentPlayer].stats.spacesMoved+=rv;
-        players[currentPlayer].stats.landings[players[currentPlayer].lastSpace]++;
-        currentPlayer=(currentPlayer+1)%players.length;
-        if(currentPlayer===0){
-          turnCount++;
-          const rem=totalTurns-turnCount+1;
-          if(rem===5&&!_effectsPrompted){
-            _effectsPrompted=true;
-            // find last place
-            const minStars=Math.min(...players.map(p=>p.stars));
-            const starLast=players.filter(p=>p.stars===minStars);
-            const minCoins=Math.min(...starLast.map(p=>p.coins));
-            const coinLast=starLast.filter(p=>p.coins===minCoins);
-            const loser=coinLast[Math.floor(Math.random()*coinLast.length)];
-            alert(`${loser.name}, pick one final-5 effect!`);
-            showEffectsModal();
-          }
-		  if (turnCount % 5 === 0) {
+function nextTurn() {
+  const rv = +document.querySelector(".player-card.active input.turn-roll").value;
+  players[currentPlayer].stats.spacesMoved += rv;
+  players[currentPlayer].stats.landings[players[currentPlayer].lastSpace]++;
+  currentPlayer = (currentPlayer + 1) % players.length;
+
+  if (currentPlayer === 0) {
+    turnCount++;
+    const rem = totalTurns - turnCount + 1;
+
+    if (rem === 5 && !_effectsPrompted) {
+      _effectsPrompted = true;
+      // find last place
+      const minStars = Math.min(...players.map(p => p.stars));
+      const starLast = players.filter(p => p.stars === minStars);
+      const minCoins = Math.min(...starLast.map(p => p.coins));
+      const coinLast = starLast.filter(p => p.coins === minCoins);
+      const loser = coinLast[Math.floor(Math.random() * coinLast.length)];
+      alert(`${loser.name}, pick one final-5 effect!`);
+      showEffectsModal();
+    }
+
+    if (turnCount % 5 === 0) {
       document.getElementById("activeEffectsText").textContent =
         "🔸 Double-Coin Minigame: get double the coins during this minigame";
-     document.getElementById("activeEffects").style.display = "block";
+      document.getElementById("activeEffects").style.display = "block";
     }
-          determineMinigameType();
-        }
-        startTurn();
-      }
+
+    // Check if game is over
+    if (turnCount > totalTurns) {
+      awardBonusStars(); // 🎯 Call our new bonus star logic
+      alert("🎉 Final Rankings Updated!");
+      return; // Stop further turns
+    }
+
+    determineMinigameType();
+  }
+
+  startTurn();
+}
 
       // RENDER PLAYERS
       function renderPlayers(){
@@ -833,6 +907,27 @@ const MINIGAMES = {
 
           // Items container
           const ic=document.createElement("div"); ic.className="items-container";
+		  // Option slot (top right corner)
+			const optSlot = document.createElement("div");
+			optSlot.className = "option-slot";
+			if (p.option) {
+			  optSlot.style.backgroundImage = `url("./item_images/${itemImages[p.option]}")`;
+			  optSlot.title = p.option;
+			} else {
+			  optSlot.title = "Set Option";
+			}
+			optSlot.addEventListener("click", () => {
+			  if (p.option) {
+				// Clear the option when clicked
+				p.option = null;
+				renderPlayers();
+			  } else {
+				// Show option selection menu
+				showOptionMenu(optSlot, i);
+			  }
+			});
+			card.appendChild(optSlot);
+
           p.items.forEach((it,slot)=>{
             const sl=document.createElement("div");
             sl.className="item-slot"; sl.title=it||"Empty";
@@ -958,6 +1053,42 @@ const MINIGAMES = {
         function cb(e){ if(!m.contains(e.target)&&e.target!==anchor){ m.remove(); document.removeEventListener("click",cb); } }
         setTimeout(()=>document.addEventListener("click",cb),0);
       }
+	  
+		function showOptionMenu(anchor, pIdx) {
+		  const old = document.getElementById("optionMenu");
+		  if (old) old.remove();
+
+		  const m = document.createElement("div");
+		  m.id = "optionMenu";
+		  m.className = "item-menu"; // reuse existing styling
+		  const options = ["Cursed Dice", "Reverse Shroom", "Thunder Cloud", "Markup Sticker"];
+
+		  options.forEach(name => {
+			const img = document.createElement("img");
+			img.src = `./item_images/${itemImages[name]}`;
+			img.title = name;
+			img.addEventListener("click", () => {
+			  players[pIdx].option = name;
+			  renderPlayers();
+			  m.remove();
+			  document.removeEventListener("click", cb);
+			});
+			m.appendChild(img);
+		  });
+
+		  document.body.appendChild(m);
+		  const r = anchor.getBoundingClientRect();
+		  m.style.top = (r.bottom + window.scrollY) + "px";
+		  m.style.left = (r.left + window.scrollX) + "px";
+
+		  function cb(e) {
+			if (!m.contains(e.target) && e.target !== anchor) {
+			  m.remove();
+			  document.removeEventListener("click", cb);
+			}
+		  }
+		  setTimeout(() => document.addEventListener("click", cb), 0);
+		}
 
       // ITEM ACTION MENU
       function showItemActionMenu(anchor,pIdx,slotIdx){
@@ -1262,6 +1393,174 @@ const MINIGAMES = {
         showVoteModal(window._lastMinigameCategory);
       });
 
+function awardBonusStars() {
+  const BONUS_CATEGORIES = [
+    "Rich", "Poor", "Sightseer", "Slowpoke", "Minigame",
+    "Event", "Bowser", "Unlucky", "Lucky", "Gambler",
+    "Item", "Really Lucky"
+  ];
+
+  // Pick two random bonus categories
+  const categories = [...BONUS_CATEGORIES];
+  const chosen = [];
+  while (chosen.length < 2 && categories.length > 0) {
+    const idx = Math.floor(Math.random() * categories.length);
+    chosen.push(categories.splice(idx, 1)[0]);
+  }
+
+  const bonusResults = [];
+
+  chosen.forEach(category => {
+    let winners = [];
+    let values = [];
+    let displayValue = [];
+
+    if (category === "Rich") {
+      values = players.map(p => p.coins + p.stats.coinsGained);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Coins`);
+    } else if (category === "Poor") {
+      values = players.map(p => p.coins + p.stats.coinsGained);
+      const min = Math.min(...values);
+      winners = players.filter((p, i) => values[i] === min);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Coins`);
+    } else if (category === "Sightseer") {
+      values = players.map(p => p.stats.spacesMoved);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Spaces`);
+    } else if (category === "Slowpoke") {
+      values = players.map(p => p.stats.spacesMoved);
+      const min = Math.min(...values);
+      winners = players.filter((p, i) => values[i] === min);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Spaces`);
+    } else if (category === "Minigame") {
+      values = players.map(p => p.stats.minigamesWon);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Minigames`);
+    } else if (category === "Event") {
+      values = players.map(p => p.stats.landings["Event Space"] || 0);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Times`);
+    } else if (category === "Bowser") {
+      values = players.map(p => p.stats.landings["Bowser Space"] || 0);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Times`);
+    } else if (category === "Unlucky") {
+      values = players.map(p => p.stats.landings["Red Space"] || 0);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Times`);
+    } else if (category === "Lucky") {
+      values = players.map(p => p.stats.landings["Lucky Space"] || 0);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Times`);
+    } else if (category === "Gambler") {
+      values = players.map(p => p.stats.landings["Chance Time Space"] || 0);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Times`);
+    } else if (category === "Item") {
+      values = players.map(p => p.stats.itemsUsed);
+      const max = Math.max(...values);
+      winners = players.filter((p, i) => values[i] === max);
+      displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Items`);
+} else if (category === "Really Lucky") {
+  // Pause awarding and spin the wheel
+  spinLuckyWheel((winner) => {
+    winners = [winner];
+    displayValue = ["Wheel Pick"];
+    winner.stars++;
+    bonusResults.push({ category, winners, displayValue });
+
+    // Continue showing bonus stars modal after spin
+    showBonusStarsModal(bonusResults);
+  });
+  return; // Stop further logic until wheel finishes
+}
+
+
+    // Give each winner 1 bonus star
+    winners.forEach(w => w.stars++);
+    bonusResults.push({ category, winners, displayValue });
+  });
+
+  // Build modal content
+function showBonusStarsModal(bonusResults) {
+  const bonusContent = document.getElementById("bonusContent");
+  bonusContent.innerHTML = "";
+  bonusResults.forEach(res => {
+    const div = document.createElement("div");
+    div.style.marginBottom = "12px";
+    div.innerHTML = `<strong>${res.category} Star:</strong><br>
+      ${res.winners.map((p, i) => `${p.name} (${res.displayValue[i]})`).join("<br>")}`;
+    bonusContent.appendChild(div);
+  });
+
+  document.getElementById("bonusModal").style.display = "flex";
+
+  document.getElementById("bonusOkBtn").onclick = () => {
+    document.getElementById("bonusModal").style.display = "none";
+    renderPlayers();
+  };
+}
+
+
+  document.getElementById("bonusModal").style.display = "flex";
+
+  // When OK is pressed
+  document.getElementById("bonusOkBtn").onclick = () => {
+    document.getElementById("bonusModal").style.display = "none";
+    renderPlayers();
+  };
+}
+function spinLuckyWheel(callback) {
+  const modal = document.getElementById("luckyWheelModal");
+  const spinner = document.getElementById("wheelSpinner");
+  const stopBtn = document.getElementById("stopWheelBtn");
+
+  let spinning = true;
+  let interval;
+
+  // Start spinning
+  modal.style.display = "flex";
+  interval = setInterval(() => {
+    const randomPlayer = players[Math.floor(Math.random() * players.length)];
+    spinner.textContent = randomPlayer.name;
+  }, 100);
+
+  stopBtn.onclick = () => {
+    if (!spinning) return;
+    spinning = false;
+    clearInterval(interval);
+
+    // Finalize winner
+    const winnerName = spinner.textContent;
+    const winner = players.find(p => p.name === winnerName);
+    winner.stars++; // Award bonus star
+
+    // Close modal
+    setTimeout(() => {
+      modal.style.display = "none";
+      callback(winner); // Return winner to calling function
+    }, 1000);
+  };
+}
+
+
+const keyMap = {
+  "Coins Gained": "coinsGained",
+  "Stars Gained": "starsGained",
+  "Spaces Moved": "spacesMoved",
+  "Items Used": "itemsUsed",
+  "Minigames Won": "minigamesWon"
+};
+
       // STATISTICS
       statsBtn.addEventListener('click',()=>{
         renderStats('All'); statsModal.style.display='block';
@@ -1282,10 +1581,38 @@ const MINIGAMES = {
               ['Items Used',p.stats.itemsUsed],
               ['Minigames Won',p.stats.minigamesWon]
             ].forEach(([lbl,val])=>{
-              const li=document.createElement('li'); li.textContent=`${lbl}: ${val}`; ul.appendChild(li);
+              const li = document.createElement('li');
+li.textContent = `${lbl}: ${val}`;
+
+// Determine if this stat is highest/lowest
+const values = players.map(pl => pl.stats[keyMap[lbl]]);
+const maxVal = Math.max(...values);
+const minVal = Math.min(...values);
+const allSame = values.every(v => v === values[0]);
+
+if (!allSame) {
+  if (val === maxVal) li.classList.add("stat-high");
+  else if (val === minVal) li.classList.add("stat-low");
+}
+
+ul.appendChild(li);
+
             });
             Object.entries(p.stats.landings).forEach(([sp,cnt])=>{
-              const li=document.createElement('li'); li.textContent=`${sp}: ${cnt}`; ul.appendChild(li);
+              const li = document.createElement('li');
+li.textContent = `${sp}: ${cnt}`;
+const values = players.map(pl => pl.stats.landings[sp] || 0);
+const maxVal = Math.max(...values);
+const minVal = Math.min(...values);
+const allSame = values.every(v => v === values[0]);
+
+if (!allSame) {
+  if (cnt === maxVal) li.classList.add("stat-high");
+  else if (cnt === minVal) li.classList.add("stat-low");
+}
+
+ul.appendChild(li);
+
             });
           } else {
             const cnt=p.stats.landings[filter]||0;
@@ -1295,6 +1622,67 @@ const MINIGAMES = {
         });
       }
     });
+// Show debug button only while holding Shift
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Shift") {
+    document.getElementById("debugButton").style.display = "block";
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.key === "Shift") {
+    document.getElementById("debugButton").style.display = "none";
+  }
+});
+
+// Open and close debug menu
+document.getElementById("debugButton").addEventListener("click", () => {
+  document.getElementById("debugModal").style.display = "flex";
+});
+document.getElementById("closeDebugBtn").addEventListener("click", () => {
+  document.getElementById("debugModal").style.display = "none";
+});
+
+// 📊 Edit Player Stats
+document.getElementById("editStatsBtn").addEventListener("click", () => {
+  document.getElementById("debugModal").style.display = "none";
+  statsBtn.click(); // Open statistics modal
+});
+
+// ⏳ Set Turn
+document.getElementById("setTurnBtn").addEventListener("click", () => {
+  const input = prompt(`Enter turn number (1-${totalTurns}):`, turnCount);
+  const n = parseInt(input, 10);
+  if (!isNaN(n) && n >= 1 && n <= totalTurns) {
+    turnCount = n;
+    alert(`Turn set to ${turnCount}`);
+    renderPlayers();
+  } else {
+    alert("Invalid turn number.");
+  }
+});
+
+// 🏁 End Game
+document.getElementById("endGameBtn").addEventListener("click", () => {
+  document.getElementById("debugModal").style.display = "none";
+  turnCount = totalTurns + 1;
+  awardBonusStars();
+});
+
+// 🎮 Force Minigame Choice
+document.getElementById("forceMinigameBtn").addEventListener("click", () => {
+  document.getElementById("debugModal").style.display = "none";
+  determineMinigameType();
+});
+
+// ⭐ Set Last 5 Turns Event
+document.getElementById("setFinal5Btn").addEventListener("click", () => {
+  document.getElementById("debugModal").style.display = "none";
+  _effectsPrompted = true; // Pretend we’re in last 5
+  showEffectsModal();
+});
+
+
+
   </script>
 </body>
 </html>
