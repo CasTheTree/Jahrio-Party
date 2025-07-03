@@ -374,38 +374,6 @@
     <button id="bonusOkBtn">OK</button>
   </div>
 </div>
-<!-- Really Lucky Wheel Modal -->
-<div id="luckyWheelModal" class="minigame-modal" style="display:none;">
-  <div class="minigame-card" style="width:300px; max-width:90vw;">
-    <h2>🎡 Really Lucky Spin!</h2>
-    <div id="wheelSpinner" style="margin:20px 0; height:80px; line-height:80px; font-size:1.5em; font-weight:bold;"></div>
-    <button id="stopWheelBtn">Stop</button>
-  </div>
-</div>
-<!-- Debug Menu Button (hidden by default) -->
-<button id="debugButton" style="
-  position:fixed; top:10px; right:10px;
-  background:#f39c12; color:#fff; border:none;
-  border-radius:6px; padding:6px 10px; cursor:pointer;
-  z-index:1002; display:none;">
-  🛠️ Debug
-</button>
-
-<!-- Debug Menu Modal -->
-<div id="debugModal" class="minigame-modal" style="display:none;">
-  <div class="minigame-card" style="width:400px; max-width:90vw;">
-    <h2>🛠️ Debug Menu</h2>
-    <div style="text-align:left;">
-      <button id="editStatsBtn" style="width:100%; margin:4px 0;">📊 Edit Player Stats</button>
-      <button id="setTurnBtn" style="width:100%; margin:4px 0;">⏳ Set Turn</button>
-      <button id="endGameBtn" style="width:100%; margin:4px 0;">🏁 End Game</button>
-      <button id="forceMinigameBtn" style="width:100%; margin:4px 0;">🎮 Force Minigame Choice</button>
-      <button id="setFinal5Btn" style="width:100%; margin:4px 0;">⭐ Set Last 5 Turns Event</button>
-    </div>
-    <button id="closeDebugBtn" style="margin-top:10px;">Close</button>
-  </div>
-</div>
-
 
   <!-- Chance Time -->
   <div id="chanceOverlay" class="chance-overlay" style="display:none">
@@ -1470,20 +1438,12 @@ function awardBonusStars() {
       const max = Math.max(...values);
       winners = players.filter((p, i) => values[i] === max);
       displayValue = winners.map((p, i) => `${values[players.indexOf(p)]} Items`);
-} else if (category === "Really Lucky") {
-  // Pause awarding and spin the wheel
-  spinLuckyWheel((winner) => {
-    winners = [winner];
-    displayValue = ["Wheel Pick"];
-    winner.stars++;
-    bonusResults.push({ category, winners, displayValue });
-
-    // Continue showing bonus stars modal after spin
-    showBonusStarsModal(bonusResults);
-  });
-  return; // Stop further logic until wheel finishes
-}
-
+    } else if (category === "Really Lucky") {
+      // Random winner
+      const randIdx = Math.floor(Math.random() * players.length);
+      winners = [players[randIdx]];
+      displayValue = [`Random Pick`];
+    }
 
     // Give each winner 1 bonus star
     winners.forEach(w => w.stars++);
@@ -1491,7 +1451,6 @@ function awardBonusStars() {
   });
 
   // Build modal content
-function showBonusStarsModal(bonusResults) {
   const bonusContent = document.getElementById("bonusContent");
   bonusContent.innerHTML = "";
   bonusResults.forEach(res => {
@@ -1504,51 +1463,10 @@ function showBonusStarsModal(bonusResults) {
 
   document.getElementById("bonusModal").style.display = "flex";
 
-  document.getElementById("bonusOkBtn").onclick = () => {
-    document.getElementById("bonusModal").style.display = "none";
-    renderPlayers();
-  };
-}
-
-
-  document.getElementById("bonusModal").style.display = "flex";
-
   // When OK is pressed
   document.getElementById("bonusOkBtn").onclick = () => {
     document.getElementById("bonusModal").style.display = "none";
     renderPlayers();
-  };
-}
-function spinLuckyWheel(callback) {
-  const modal = document.getElementById("luckyWheelModal");
-  const spinner = document.getElementById("wheelSpinner");
-  const stopBtn = document.getElementById("stopWheelBtn");
-
-  let spinning = true;
-  let interval;
-
-  // Start spinning
-  modal.style.display = "flex";
-  interval = setInterval(() => {
-    const randomPlayer = players[Math.floor(Math.random() * players.length)];
-    spinner.textContent = randomPlayer.name;
-  }, 100);
-
-  stopBtn.onclick = () => {
-    if (!spinning) return;
-    spinning = false;
-    clearInterval(interval);
-
-    // Finalize winner
-    const winnerName = spinner.textContent;
-    const winner = players.find(p => p.name === winnerName);
-    winner.stars++; // Award bonus star
-
-    // Close modal
-    setTimeout(() => {
-      modal.style.display = "none";
-      callback(winner); // Return winner to calling function
-    }, 1000);
   };
 }
 
@@ -1622,67 +1540,6 @@ ul.appendChild(li);
         });
       }
     });
-// Show debug button only while holding Shift
-window.addEventListener("keydown", (e) => {
-  if (e.key === "Shift") {
-    document.getElementById("debugButton").style.display = "block";
-  }
-});
-window.addEventListener("keyup", (e) => {
-  if (e.key === "Shift") {
-    document.getElementById("debugButton").style.display = "none";
-  }
-});
-
-// Open and close debug menu
-document.getElementById("debugButton").addEventListener("click", () => {
-  document.getElementById("debugModal").style.display = "flex";
-});
-document.getElementById("closeDebugBtn").addEventListener("click", () => {
-  document.getElementById("debugModal").style.display = "none";
-});
-
-// 📊 Edit Player Stats
-document.getElementById("editStatsBtn").addEventListener("click", () => {
-  document.getElementById("debugModal").style.display = "none";
-  statsBtn.click(); // Open statistics modal
-});
-
-// ⏳ Set Turn
-document.getElementById("setTurnBtn").addEventListener("click", () => {
-  const input = prompt(`Enter turn number (1-${totalTurns}):`, turnCount);
-  const n = parseInt(input, 10);
-  if (!isNaN(n) && n >= 1 && n <= totalTurns) {
-    turnCount = n;
-    alert(`Turn set to ${turnCount}`);
-    renderPlayers();
-  } else {
-    alert("Invalid turn number.");
-  }
-});
-
-// 🏁 End Game
-document.getElementById("endGameBtn").addEventListener("click", () => {
-  document.getElementById("debugModal").style.display = "none";
-  turnCount = totalTurns + 1;
-  awardBonusStars();
-});
-
-// 🎮 Force Minigame Choice
-document.getElementById("forceMinigameBtn").addEventListener("click", () => {
-  document.getElementById("debugModal").style.display = "none";
-  determineMinigameType();
-});
-
-// ⭐ Set Last 5 Turns Event
-document.getElementById("setFinal5Btn").addEventListener("click", () => {
-  document.getElementById("debugModal").style.display = "none";
-  _effectsPrompted = true; // Pretend we’re in last 5
-  showEffectsModal();
-});
-
-
-
   </script>
 </body>
 </html>
