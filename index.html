@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mario Party with Turns & Stats</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #222;
+      color: #fff;
+      margin: 0; padding: 0;
+      overflow-x: hidden;
+      text-align: center;
+    }
+    /* STEP 1–4 screens */
+    .player-count-screen, .turn-count-screen, .player-setup { margin-top:30px; }
+    .player { margin-bottom:20px; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; }
+    input[type=number] { -moz-appearance:textfield; }
+    /* Game board */
+    #playerCards { display:flex; justify-content:center; flex-wrap:wrap; }
+    .player-card {
+      position:relative; display:inline-block;
+      background:#444; padding:10px;
+      border:1px solid #666; border-radius:10px;
+      margin:10px; width:220px; padding-bottom:60px;
+      box-sizing:border-box; text-align:center;
+    }
+    .player-card.active { border:2px solid #fff; padding-bottom:140px; }
+    .player-card.active::after {
+      content:""; position:absolute; bottom:-10px; left:50%;
+      transform:translateX(-50%);
+      border-left:10px solid transparent;
+      border-right:10px solid transparent;
+      border-top:10px solid #fff;
+    }
+    img.avatar {
+      width:60px; height:60px; border-radius:50%;
+      object-fit:cover; display:inline-block;
+    }
+    .avatar.placeholder {
+      width:60px; height:60px; border-radius:50%;
+      background:#666; display:inline-block;
+    }
+    .space-icon {
+      position:absolute; top:8px; left:8px;
+      width:24px; height:24px;
+    }
+    .turn-controls {
+      position:absolute; bottom:60px; left:10px; right:10px;
+      display:grid; grid-template: auto auto / auto auto;
+      grid-gap:4px; background:#333; padding:6px;
+      border:1px solid #fff; border-radius:6px;
+      z-index:500;
+    }
+    .turn-roll { grid-area:1/1; width:8ch; padding:2px; }
+    .turn-end { grid-area:1/2; background:#555; border:1px solid #fff;
+      border-radius:4px; color:#fff; padding:2px 4px; cursor:pointer;
+    }
+    .turn-end:disabled { background:#444; color:#888; cursor:default; }
+    .turn-space { grid-area:2/1/3/3; width:100%; padding:2px; }
+    .items-container {
+      position:absolute; bottom:10px; left:50%;
+      transform:translateX(-50%); display:flex; gap:8px;
+    }
+    .item-slot {
+      width:40px; height:40px; border:1px solid #fff;
+      border-radius:50%; background-size:contain;
+      cursor:pointer;
+    }
+    /* Menus */
+    .stat-menu {
+      position:absolute; background:#333; padding:6px;
+      border:1px solid #fff; border-radius:6px;
+      display:flex; gap:4px; z-index:1000;
+    }
+    .stat-menu input { width:40px; text-align:center; }
+    .stat-menu button { background:#555; border:1px solid #fff;
+      border-radius:4px; color:#fff; padding:4px 6px; cursor:pointer;
+    }
+    .item-menu {
+      position:absolute; background:#333; padding:8px;
+      border:1px solid #fff; border-radius:8px;
+      display:grid; grid-template-columns:repeat(5,32px);
+      gap:4px; max-width:200px; max-height:250px;
+      overflow:auto; z-index:1000;
+    }
+    .item-menu img { width:30px; height:30px; cursor:pointer; }
+    .item-menu .random-btn, .item-menu .bag-btn {
+      grid-column:span 5; background:#555; border:1px solid #fff;
+      border-radius:4px; color:#fff; padding:6px 0; cursor:pointer;
+      text-align:center; margin:4px 0;
+    }
+    .item-menu button:hover { background:#666; }
+    /* Filter buttons */
+    .filter-buttons {
+      position:fixed; bottom:70px; right:10px;
+      display:flex; flex-direction:column; gap:6px; z-index:1001;
+    }
+    .filter-buttons button {
+      background:#555; color:#fff; border:1px solid #fff;
+      border-radius:4px; padding:6px 10px; cursor:pointer;
+    }
+    .filter-buttons button:hover { background:#666; }
+    /* Submenus */
+    .hidden-block-menu, .cycle-menu {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:#333; border:1px solid #fff;
+      border-radius:6px; padding:12px; color:#fff;
+      text-align:center; pointer-events:none; z-index:1003;
+    }
+    .hidden-block-menu span, .cycle-menu span {
+      display:block; min-width:120px;
+    }
+    /* Boo */
+    .boo-overlay {
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.85);
+      display:flex; align-items:center; justify-content:center;
+      z-index:2000;
+    }
+    .boo-overlay canvas {
+      background:#000; border:4px solid #fff; border-radius:8px;
+    }
+    .boo-overlay #booMessage {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.7); padding:1rem 2rem;
+      border:2px solid #fff; border-radius:8px;
+      font-size:2rem; color:#fff; display:none;
+    }
+    /* Chance Time */
+    .chance-overlay {
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.85);
+      display:flex; align-items:center; justify-content:center;
+      z-index:2100;
+    }
+    .chance-card {
+      background:#333; border:1px solid #fff; border-radius:10px;
+      padding:20px; width:500px; color:#fff; text-align:center;
+    }
+    .chance-flex { display:flex; justify-content:center; gap:10px; margin-top:15px; }
+    .subcard {
+      background:#444; border:1px solid #fff; border-radius:8px;
+      padding:10px; width:140px; min-height:150px;
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center;
+    }
+    .subcard img {
+      width:60px; height:60px; border-radius:50%;
+      margin-top:8px; visibility:hidden; display:inline-block;
+    }
+    .subcard button {
+      margin-top:8px; padding:6px 10px;
+      background:#555; border:1px solid #fff; border-radius:4px;
+      color:#fff; cursor:pointer;
+    }
+    .subcard button:hover { background:#666; }
+    #ctResultCard { width:460px; max-width:100%; margin:20px auto; }
+    /* Randomizer */
+    .randomizer-overlay {
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.85);
+      display:flex; align-items:center; justify-content:center;
+      z-index:2200;
+    }
+    .randomizer-card {
+      background:#333; border:1px solid #fff; border-radius:10px;
+      padding:20px; width:360px; color:#fff; text-align:center;
+    }
+    .randomizer-list {
+      max-height:200px; overflow-y:auto; text-align:left;
+      margin:10px 0;
+    }
+    .randomizer-list div { margin-bottom:6px; }
+    .randomizer-card input[type=number] {
+      width:60px; padding:4px; margin-left:8px;
+    }
+    .randomizer-card button {
+      margin-top:12px; padding:6px 12px;
+      background:#555; border:1px solid #fff; border-radius:4px;
+      color:#fff; cursor:pointer;
+    }
+    .randomizer-card button:hover { background:#666; }
+    .minigame-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    .minigame-card {
+      background: #333; border: 1px solid #fff;
+      border-radius: 8px; padding: 20px; width: 280px;
+      text-align: center;
+    }
+    /* Wider vote dialog */
+    #voteModal .minigame-card { width:600px; max-width:90%; }
+    .minigame-card h2 { margin-top:0; }
+    .minigame-card p { font-size:1.1em; margin:12px 0; }
+    .minigame-card button {
+      padding:6px 12px; background:#555;
+      border:1px solid #fff; border-radius:4px;
+      color:#fff; cursor:pointer;
+    }
+    .minigame-card button:hover { background:#666; }
+    /* Stats */
+    #statsButton {
+      position:fixed; bottom:10px; right:10px;
+      background:#555; color:#fff; border:1px solid #fff;
+      border-radius:4px; padding:6px 10px; cursor:pointer;
+      z-index:1001;
+    }
+    #statsButton:hover { background:#666; }
+    #statsModal {
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:#333; padding:20px;
+      border:1px solid #fff; border-radius:8px;
+      width:400px; max-height:80vh; overflow-y:auto;
+      z-index:1002;
+    }
+    #statsModal h3 { margin-top:0; text-align:center; }
+    #statsModal button.close {
+      position:absolute; top:8px; right:8px; background:transparent;
+      border:none; color:#fff; font-size:1.2em; cursor:pointer;
+    }
+    .player-stats {
+      border-top:1px solid #555; padding-top:10px; margin-top:10px;
+    }
+    .player-stats h4 { margin:0 0 6px; }
+    .player-stats ul { list-style:none; padding:0; margin:0; }
+    .player-stats li { margin:2px 0; font-size:0.9em; }
+  </style>
+</head>
+<body>
+
+  <!-- STEP 1 -->
+  <div class="player-count-screen">
+    <h1>Enter Number of Players (2–8)</h1>
+    <form id="playerCountForm">
+      <input type="number" id="playerCount" min="2" max="8" value="4" required>
+      <button type="submit">Next</button>
+    </form>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="turn-count-screen" style="display:none">
+    <h1>Enter Number of Turns</h1>
+    <form id="turnCountForm">
+      <input type="number" id="turnCount" min="1" max="99" value="20" required>
+      <button type="submit">Next</button>
+    </form>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="player-setup" style="display:none">
+    <h1>Player Setup</h1>
+    <form id="playerForm">
+      <div id="playersContainer"></div>
+      <button type="submit">Start Game</button>
+    </form>
+  </div>
+
+  <!-- STEP 4 -->
+  <div id="gameBoard" style="display:none">
+    <h1>Mario Party Board</h1>
+    <div id="turnIndicator" style="display:none; margin:12px 0; font-size:1.2em;"></div>
+    <div id="activeEffects" style="display:none; margin:8px 0; color:#ffcc00; font-weight:bold;">
+      Current Effect: <span id="activeEffectsText"></span>
+    </div>
+    <div id="playerCards"></div>
+  </div>
+
+  <!-- Filter Buttons -->
+  <div class="filter-buttons">
+    <button data-space="Boo Space">Boo</button>
+    <button data-space="Chance Time Space">Chance Time</button>
+    <button data-space="Lucky Space">Lucky Space</button>
+    <button data-space="Unluck Space">Unlucky Space</button>
+    <button data-space="Bowser Space">Bowser</button>
+    <button data-space="Bowser Minigame">Bowser Minigame</button>
+    <button data-space="Hidden Block">Hidden Block</button>
+    <button data-space="VS Space">Versus Space</button>
+  </div>
+
+  <!-- Effects Modal (Final-5) -->
+  <div id="effectsModal" class="minigame-modal" style="display:none;">
+    <div class="minigame-card" style="width:360px; max-width:90vw; text-align:left;">
+      <h2>Pick a Final-5 Effect</h2>
+      <form id="effectsForm" style="max-height:240px; overflow:auto;">
+        <div id="effectsOptions" style="margin-bottom:12px;"></div>
+        <button type="submit">Confirm Effect</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Boo Overlay -->
+  <div id="booOverlay" class="boo-overlay" style="display:none">
+    <canvas id="booCanvas" width="600" height="400"></canvas>
+    <div id="booMessage"></div>
+  </div>
+
+  <!-- Minigame Type Modal -->
+  <div id="minigameModal" class="minigame-modal" style="display:none;">
+    <div class="minigame-card">
+      <h2>Next Minigame</h2>
+      <p id="minigameText"></p>
+      <div id="minigameDetails" style="margin:12px 0; text-align:left;"></div>
+      <button id="minigameOk">OK</button>
+    </div>
+  </div>
+
+  <!-- Vote Modal -->
+  <div id="voteModal" class="minigame-modal" style="display:none;">
+    <div class="minigame-card">
+      <h2>Vote for Next Minigame</h2>
+      <form id="voteForm">
+        <div id="voteOptions" style="text-align:left; margin-bottom:12px;"></div>
+        <button type="submit">Submit Vote</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Selected Minigame Modal -->
+  <div id="selectedModal" class="minigame-modal" style="display:none">
+    <div class="minigame-card">
+      <h2>Chosen Minigame</h2>
+      <p id="selectedText"></p>
+      <button id="selectedOk">OK</button>
+    </div>
+  </div>
+
+  <!-- Winner Picker -->
+  <div id="winnerModal" class="minigame-modal" style="display:none;">
+    <div class="minigame-card">
+      <h2>Select Winner(s)</h2>
+      <div id="winnerOptions" style="text-align:left; margin-bottom:12px;"></div>
+      <button id="winnersSubmit">Done</button>
+    </div>
+  </div>
+
+  <!-- Chance Time -->
+  <div id="chanceOverlay" class="chance-overlay" style="display:none">
+    <div class="chance-card">
+      <h2>Chance Time Simulator</h2>
+      <div id="chanceSetup" class="chance-inputs">
+        <button id="ctStartBtn">Start Chance Time!</button>
+      </div>
+      <div id="chanceGame" style="display:none">
+        <div class="chance-flex">
+          <div class="subcard">
+            <h4>Left Player</h4>
+            <div id="ctLeftDisplay">???</div>
+            <img id="ctLeftImage">
+            <button id="ctLeftStart">Start</button>
+            <button id="ctLeftStop" style="display:none">Stop</button>
+          </div>
+          <div class="subcard">
+            <h4>Item</h4>
+            <div id="ctItemDisplay">???</div>
+            <img id="ctItemImage">
+            <button id="ctItemStart">Start</button>
+            <button id="ctItemStop" style="display:none">Stop</button>
+          </div>
+          <div class="subcard">
+            <h4>Right Player</h4>
+            <div id="ctRightDisplay">???</div>
+            <img id="ctRightImage">
+            <button id="ctRightStart">Start</button>
+            <button id="ctRightStop" style="display:none">Stop</button>
+          </div>
+        </div>
+        <div id="ctResultCard" class="chance-card chance-result" style="display:none">
+          <h3>Result</h3>
+          <div id="ctResultText"></div>
+          <button id="ctRerollBtn">Reroll</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Randomizer -->
+  <button id="randomizeBtn" style="
+    position:fixed; bottom:10px; left:10px;
+    background:#555;color:#fff;border:1px solid #fff;
+    border-radius:4px; padding:6px 10px; cursor:pointer;
+    z-index:1001;">
+    Randomize Players
+  </button>
+  <div id="randomizerModal" class="randomizer-overlay" style="display:none">
+    <div class="randomizer-card">
+      <h2>Player Randomizer</h2>
+      <div id="randomizerForm">
+        <p>Select players to include:</p>
+        <div id="randomizerList" class="randomizer-list"></div>
+        <p>How many to choose?
+          <input type="number" id="randomCount" min="1" value="1">
+        </p>
+        <button id="randomChooseBtn">Choose</button>
+      </div>
+      <div id="randomResult" style="display:none">
+        <h3>Chosen Players:</h3>
+        <ul id="randomResultList" style="text-align:left;"></ul>
+        <button id="randomCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics -->
+  <button id="statsButton">Statistics</button>
+  <div id="statsModal" style="display:none">
+    <button class="close">&times;</button>
+    <h3>Player Statistics</h3>
+    <div id="statsContent"></div>
+  </div>
+
+  <!-- —————————————————————————————————————————————————————————————— -->
+  <!-- 1) GLOBAL CONSTANTS & HELPERS -->
+  <script>
+// ─── MINIGAMES ───────────────────────────────────────────
+const MINIGAMES = {
+  "FFA": [
+    "3-6-9","A Moment in Time","Auction It Off","Book Worm","Bot Gambling",
+    "Number March","Clicker Masher","Deal or No Deal","Fake It 'til You Make It",
+    "Fastest Finger First","Feuding with Google","Hey Now, You're a FEH Star",
+    "Hot Potato","Human Benchmark","I Would Never!","Jaheim's Game of Life",
+    "Magic the Gacharing","Nippon Bowling","Nukes Beats Rock","Off to the Races",
+    "Perfect Circle","Crawl the Plank","Press the Button?","Sequence Break",
+    "Should You Open It?","Silver Lining","Horsing Around","Songless",
+    "Speed o' Song","Timestamp Champ","Them's The Squid","W.P.M.",
+    "Wi Find the Ki Path","Word D?hain","Wordle","YouTube Video",
+    "Homerun Contest","Paging Someone","Human Or Not","Youtube Wiki Game",
+    "Acroname","Juxastat"
+  ],
+  "2 vs 2": [
+    "Back Draw","Blind Smash","Charades Me","Duo Kart","Everyone's a Comedian",
+    "Exceeding Expectations","JCharades","Make a face.","Math's of Glory",
+    "Pokedoku","Sprocle Off","Squirdle","Taboo's the Word","Telepathy",
+    "Them's the Name","Who's More Likely","Wi Find the Ki Path"
+  ],
+  "1 vs 3": [
+    "Blame the Same","Deadmonton","Hang the Man","Hidden Box","It's a Felix",
+    "Lie To Me","Pokéathlon","Reverse Lies","Ro-Sham-NO!","Scattegories",
+    "Spelling Bee","Statistially Rolling","Tele-Focus","Who Has the Item?",
+    "Who's the imposter","Your Turn to Make a JC-Pardy"
+  ]
+};
+    const ALL_SECONDARY_EFFECTS = [
+      "Lose 6 more coins on Blue Spaces; Gain 6 more coins on Red Spaces",
+      "Doubles everyone's coins",
+      "All coins must be divided evenly amongst the 4 players",
+      "All Red Spaces now act as Bowser Spaces for the remainder of the game",
+      "All Stars are now free for the remainder of the game",
+      "All versus spaces also act as Chance Time Spaces for the remainder of the game",
+      "Everyone gets a Dueling Glove",
+      "The star price is permanently halved for the remainder of the game",
+      "A second star appears on the board",
+      "All players receive a Star Steal Trap",
+      "One player receives a Mushroom",
+      "Last place gets the same amount of stars as first",
+      "Second and Third swap coins and stars."
+    ];
+    let players = [], totalTurns=20, currentPlayer=0, turnCount=1;
+    let _chosenSecondaryEffect=null, _effectsPrompted=false;
+
+    function ordinal(n){
+      const sfx=['st','nd','rd'][n%10-1], v=n%100;
+      return (v>=11&&v<=13)?'th':(sfx||'th');
+    }
+
+    function showEffectsModal(){
+      const pool=[...ALL_SECONDARY_EFFECTS], choices=[];
+      while(choices.length<6&&pool.length)
+        choices.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+      const ctn=document.getElementById("effectsOptions");
+      ctn.innerHTML="";
+      choices.forEach((txt,i)=>{
+        ctn.insertAdjacentHTML("beforeend",`
+          <div style="margin-bottom:6px;">
+            <label>
+              <input type="radio" name="effect" value="${i}" required>
+              ${txt}
+            </label>
+          </div>`);
+      });
+      document.getElementById("effectsModal").style.display="flex";
+    }
+
+    function showVoteModal(category){
+      const all=MINIGAMES[category]||[], opts=[], pool=[...all];
+      while(opts.length<4&&pool.length)
+        opts.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+      let html='<table style="border-collapse:collapse;width:100%;">'
+               +'<thead><tr><th></th>';
+      opts.forEach(o=> html+=`<th style="border:1px solid #fff;padding:6px;">${o}</th>`);
+      html+='</tr></thead><tbody>';
+      players.forEach((p,i)=>{
+        html+=`<tr><td style="border:1px solid #fff;padding:6px;text-align:left;">${p.name}</td>`;
+        opts.forEach(o=>{
+          html+=`<td style="border:1px solid #fff;padding:6px;text-align:center;">
+                   <input type="radio" name="vote_${i}" value="${o}">
+                 </td>`;
+        });
+        html+='</tr>';
+      });
+      html+='</tbody></table>';
+      document.getElementById("voteOptions").innerHTML=html;
+      document.getElementById("voteModal").style.display="flex";
+    }
+
+    function chooseMinigame(opts, vc){
+      const weighted=[];
+      opts.forEach(g=>{
+        const w=Math.max(1,vc[g]||0);
+        for(let i=0;i<w;i++) weighted.push(g);
+      });
+      const pick=weighted[Math.floor(Math.random()*weighted.length)];
+      document.getElementById("selectedText").textContent=pick;
+      document.getElementById("selectedModal").style.display="flex";
+    }
+
+    function showWinnerModal(){
+      const ctn=document.getElementById("winnerOptions");
+      ctn.innerHTML="";
+      players.forEach((p,i)=>{
+        ctn.insertAdjacentHTML("beforeend",`
+          <div style="margin-bottom:8px;">
+            <label><input type="checkbox" value="${i}"> ${p.name}</label>
+          </div>`);
+      });
+      document.getElementById("winnerModal").style.display="flex";
+    }
+  </script>
+
+  <!-- 2) ONE-OFF EVENT HANDLERS -->
+  <script>
+    document.getElementById("effectsForm").addEventListener("submit", e=>{
+      e.preventDefault();
+      const sel=+document.querySelector('input[name="effect"]:checked').value;
+      const lbl=document.querySelectorAll("#effectsOptions label")[sel].textContent.trim();
+      _chosenSecondaryEffect=lbl;
+      document.getElementById("effectsModal").style.display="none";
+      document.getElementById("activeEffectsText").textContent=lbl;
+      document.getElementById("activeEffects").style.display="block";
+    });
+
+    document.getElementById("voteForm").addEventListener("submit", e=>{
+      e.preventDefault();
+      const opts=[...document.querySelectorAll("#voteOptions thead th:not(:first-child)")]
+                   .map(th=>th.textContent);
+      const vc=opts.reduce((o,g)=>(o[g]=0,o),{});
+      players.forEach((_,i)=>{
+        const r=document.querySelector(`input[name="vote_${i}"]:checked`);
+        if(r) vc[r.value]++;
+      });
+      document.getElementById("voteModal").style.display="none";
+      chooseMinigame(opts,vc);
+    });
+
+    document.getElementById("selectedOk").addEventListener("click", ()=>{
+      document.getElementById("selectedModal").style.display="none";
+      showWinnerModal();
+    });
+
+    document.getElementById("winnersSubmit").addEventListener("click", ()=>{
+      const wins=[...document.querySelectorAll("#winnerOptions input:checked")]
+                  .map(cb=>+cb.value);
+      wins.forEach(i=>{
+        players[i].stats.minigamesWon = (players[i].stats.minigamesWon||0) + 1;
+      });
+      document.getElementById("winnerModal").style.display="none";
+      renderPlayers();
+    });
+  </script>
+
+  <!-- 3) MAIN GAME SCRIPT -->
+  <script>
+    document.addEventListener("DOMContentLoaded", ()=>{
+      // Cached
+      const pcForm=document.getElementById("playerCountForm");
+      const tcForm=document.getElementById("turnCountForm");
+      const pForm =document.getElementById("playerForm");
+      const pCnt  =document.getElementById("playerCount");
+      const tCnt  =document.getElementById("turnCount");
+
+      const playersContainer=document.getElementById("playersContainer");
+      const gameBoard=document.getElementById("gameBoard");
+      const turnInd=document.getElementById("turnIndicator");
+      const playerCards=document.getElementById("playerCards");
+
+      const statsBtn=document.getElementById("statsButton");
+      const statsModal=document.getElementById("statsModal");
+      const statsClose=statsModal.querySelector("button.close");
+      const statsContent=document.getElementById("statsContent");
+
+      const effectsModal=document.getElementById("effectsModal");
+      const randomBtn=document.getElementById("randomizeBtn");
+      const randomModal=document.getElementById("randomizerModal");
+      const randomForm=document.getElementById("randomizerForm");
+      const randomList=document.getElementById("randomizerList");
+      const randomCount=document.getElementById("randomCount");
+      const randomChoose=document.getElementById("randomChooseBtn");
+      const randomResult=document.getElementById("randomResult");
+      const randomResultList=document.getElementById("randomResultList");
+      const randomClose=document.getElementById("randomCloseBtn");
+
+      const itemImages = {  "Mushroom": "Mushroom.png",
+  "Mushroom Ticket": "Mushroom Tickets.png",
+  "Golden Mushroom": "Golden Mushroom.png",
+  "Double Dice": "Double Dice.png",
+  "Triple Dice": "Triple Dice.png",
+  "Payday Double Dice": "Payday Double Dice.png",
+  "Payday Triple Dice": "Payday Triple Dice.png",
+  "Custom Dice": "Custom Dice Block.png",
+  "Cursed Dice": "Cursed Dice Block.png",
+  "Triple Cursed Dice": "Triple Cursed Dice.png",
+  "Reverse Shroom": "Reverse Shroom.png",
+  "Triple Reverse Shrooms": "Triple Reverse Shrooms.png",
+  "Thunder Cloud": "Thunder Cloud.png",
+  "Skeleton Key": "Skeleton Key.png",
+  "Warp Block": "Warp Block.png",
+  "Swap Mirror": "Swap Mirror.png",
+  "Shop Hop Box": "Shop Hop Box.png",
+  "Golden Pipe": "Golden Pipe.png",
+  "Dueling Glove": "Dueling Glove.png",
+  "Chomp Call": "Chomp Call.png",
+  "10-Coin Steal Trap": "10 Coin Steal Trap.png",
+  "Half-Coins Steal Trap": "Half-Coins Steal Trap.png",
+  "Star Steal Trap": "Star Steal Trap.png",
+  "Twomp Trap": "Thwomp Trap.png",
+  "Heavy Duty Boots": "Heavy-Duty Boots.png",
+  "Cellular Shopper": "Cellular Shopper.png",
+  "Bowser Phone": "Bowser Phone.png",
+  "Boo Repellent": "Boo Repellent.png",
+  "Double or Nothing Soda": "Golden Drink.png",
+  "Markup Sticker": "Markup Sticker.png",
+  "Plunder Chest": "Plunder Chest.png",
+  "Boo Bell": "Boo Bell Artwork.png",
+  "Blue Shell": "Blue Shell.png",
+  "Reverse Card": "Reverse Card.png",
+  "Double Star Card": "Double Star Card.png",
+  "Hidden Block Card": "Hidden Block Card.png",
+  "Double Up": "Double Up.png",
+  "Super Swap Mirror": "Super Swap Mirror.png",
+  "Super Warp Block": "Super Warp Block.png",
+  "Super Dueling Glove": "Super Dueling Glove.png"}, spaceImages={  "Blue Space": "50px-SMPJ_Blue_Space.png",
+  "Red Space": "50px-SMPJ_Red_Space.png",
+  "Lucky Space": "50px-SMPJ_Lucky_Space.png",
+  "Unluck Space": "50px-SMPJ_Unlucky_Space.png",
+  "Bowser Space": "50px-SMPJ_Bowser_Space.png",
+  "Chance Time Space": "50px-SMPJ_Chance_Time_Space.png",
+  "Item Space": "50px-SMPJ_Item_Space.png",
+  "Event Space": "50px-SMPJ_Event_Space.png",
+  "VS Space": "50px-SMPJ_VS_Space.png"};
+      const items=Object.keys(itemImages), spaces=Object.keys(spaceImages);
+	const SPECIAL_EVERY_N = 5;
+
+      // STEP1
+      pcForm.addEventListener("submit", e=>{
+        e.preventDefault();
+        const c=+pCnt.value;
+        if(c>=2&&c<=8){
+          pcForm.parentNode.style.display="none";
+          tcForm.parentNode.style.display="block";
+        } else alert("Enter 2–8 players");
+      });
+
+      // STEP2
+      tcForm.addEventListener("submit", e=>{
+        e.preventDefault();
+        totalTurns = +tCnt.value||20;
+        tcForm.parentNode.style.display="none";
+        pForm.parentNode.style.display="block";
+        playersContainer.innerHTML="";
+        for(let i=0;i<+pCnt.value;i++){
+          const d=document.createElement("div"); d.className="player";
+          d.innerHTML=`
+            <input type="number" name="roll${i}" min="1" max="6" placeholder="Roll"/>
+            <input type="text"   name="name${i}" placeholder="Player ${i+1}"/>
+            <input type="file"   accept="image/*" name="file${i}"/>
+            <input type="text"   name="url${i}" placeholder="Image URL"/>
+          `;
+          playersContainer.appendChild(d);
+        }
+      });
+
+      // STEP3
+      pForm.addEventListener("submit", e=>{
+        e.preventDefault();
+        const data=new FormData(pForm), cnt=playersContainer.children.length;
+        const promises=[];
+        for(let i=0;i<cnt;i++){
+          let roll=+data.get(`roll${i}`); 
+          if(!roll||roll<1||roll>6) roll=Math.floor(Math.random()*6)+1;
+          const name=data.get(`name${i}`).trim()||`Player ${i+1}`;
+          const file=data.get(`file${i}`), url=data.get(`url${i}`).trim();
+          promises.push(new Promise(res=>{
+            const base={
+              name,img:null,stars:0,coins:0,
+              roll,items:[null,null,null],lastSpace:null,
+              stats:{coinsGained:0,starsGained:0,spacesMoved:0,itemsUsed:0,minigamesWon:0,
+                     landings:spaces.reduce((o,k)=>(o[k]=0,o),{})}
+            };
+            if(file&&file.size){
+              const r=new FileReader();
+              r.onload=()=>{ base.img=r.result; res(base); };
+              r.readAsDataURL(file);
+            } else {
+              base.img = url||null;
+              res(base);
+            }
+          }));
+        }
+        Promise.all(promises).then(list=>{
+          players=list.sort((a,b)=>b.roll-a.roll);
+          startTurn();
+        });
+      });
+
+      // START TURN
+      function startTurn(){
+        pForm.parentNode.style.display="none";
+        gameBoard.style.display="block";
+        renderPlayers();
+        turnInd.textContent=`Turn ${turnCount}/${totalTurns}: ${players[currentPlayer].name}'s turn`;
+        turnInd.style.display="block";
+      }
+
+      // NEXT TURN
+      function nextTurn(){
+        const rv=+document.querySelector(".player-card.active input.turn-roll").value;
+        players[currentPlayer].stats.spacesMoved+=rv;
+        players[currentPlayer].stats.landings[players[currentPlayer].lastSpace]++;
+        currentPlayer=(currentPlayer+1)%players.length;
+        if(currentPlayer===0){
+          turnCount++;
+          const rem=totalTurns-turnCount+1;
+          if(rem===5&&!_effectsPrompted){
+            _effectsPrompted=true;
+            // find last place
+            const minStars=Math.min(...players.map(p=>p.stars));
+            const starLast=players.filter(p=>p.stars===minStars);
+            const minCoins=Math.min(...starLast.map(p=>p.coins));
+            const coinLast=starLast.filter(p=>p.coins===minCoins);
+            const loser=coinLast[Math.floor(Math.random()*coinLast.length)];
+            alert(`${loser.name}, pick one final-5 effect!`);
+            showEffectsModal();
+          }
+		  if (turnCount % 5 === 0) {
+      document.getElementById("activeEffectsText").textContent =
+        "🔸 Double-Coin Minigame: get double the coins during this minigame";
+     document.getElementById("activeEffects").style.display = "block";
+    }
+          determineMinigameType();
+        }
+        startTurn();
+      }
+
+      // RENDER PLAYERS
+      function renderPlayers(){
+        playerCards.innerHTML="";
+        const order=players.map((_,i)=>i)
+          .sort((i,j)=>(players[j].stars-players[i].stars)|| (players[j].coins-players[i].coins));
+        const ranks=[], seen={};
+        order.forEach((idx,i)=>{
+          const key=`${players[idx].stars}|${players[idx].coins}`;
+          if(!seen[key]) seen[key]=i+1;
+          ranks[idx]=seen[key];
+        });
+        players.forEach((p,i)=>{
+          const card=document.createElement("div");
+          card.className="player-card"+(i===currentPlayer?" active":"");
+          if(p.lastSpace){
+            const sp=document.createElement("img");
+            sp.className="space-icon";
+            sp.src=`space_image/${spaceImages[p.lastSpace]}`;
+            card.appendChild(sp);
+          }
+          let av;
+          if(p.img){
+            av=document.createElement("img");
+            av.className="avatar"; av.src=p.img; av.alt=p.name;
+          } else {
+            av=document.createElement("div"); av.className="avatar placeholder";
+          }
+          const nm=document.createElement("h3"); nm.textContent=p.name;
+          const rkEl=document.createElement("p");
+          rkEl.style.fontStyle="italic";
+          const r=ranks[i];
+          let col="#fff";
+          if(r===1) col="gold"; else if(r===2) col="silver";
+          else if(r===3) col="#cd7f32"; else if(r===4) col="#ff8c00";
+          rkEl.style.color=col; rkEl.textContent=`${r}${ordinal(r)}`;
+          const starEl=document.createElement("p");
+          starEl.textContent=`⭐ ${p.stars}`; starEl.style.cursor="pointer";
+          starEl.addEventListener("click",e=>showStatMenu(e.currentTarget,i,"stars"));
+          const coinEl=document.createElement("p");
+          coinEl.textContent=`🟡 ${p.coins}`; coinEl.style.cursor="pointer";
+          coinEl.addEventListener("click",e=>showStatMenu(e.currentTarget,i,"coins"));
+          card.append(av,nm,rkEl,starEl,coinEl);
+
+          if(i===currentPlayer){
+            const tc=document.createElement("div"); tc.className="turn-controls";
+            const rollIn=document.createElement("input");
+            rollIn.className="turn-roll"; rollIn.type="number"; rollIn.placeholder="Roll"; rollIn.min="0"; rollIn.max="999";
+            const endBtn=document.createElement("button");
+            endBtn.className="turn-end"; endBtn.textContent="End Turn"; endBtn.disabled=true;
+            endBtn.addEventListener("click",()=>nextTurn());
+            const spaceSel=document.createElement("select"); spaceSel.className="turn-space";
+            const ph=document.createElement("option");
+            ph.value=""; ph.textContent="Landed Space"; ph.disabled=true; ph.selected=true;
+            spaceSel.appendChild(ph);
+            spaces.forEach(txt=>{
+              const o=document.createElement("option");
+              o.value=o.textContent=txt; spaceSel.appendChild(o);
+            });
+            function updateEnd(){
+              endBtn.disabled=!(rollIn.value.trim()!==""&&spaceSel.value!=="");
+              if(!endBtn.disabled) p.lastSpace=spaceSel.value;
+            }
+            rollIn.addEventListener("input",updateEnd);
+            spaceSel.addEventListener("change",updateEnd);
+            tc.append(rollIn,endBtn,spaceSel);
+            card.appendChild(tc);
+          }
+
+          // Items container
+          const ic=document.createElement("div"); ic.className="items-container";
+          p.items.forEach((it,slot)=>{
+            const sl=document.createElement("div");
+            sl.className="item-slot"; sl.title=it||"Empty";
+            if(it) sl.style.backgroundImage=`url("./item_images/${itemImages[it]}")`;
+            sl.addEventListener("click",()=>{
+              if(p.items[slot]) showItemActionMenu(sl,i,slot);
+              else showItemMenu(sl,i,slot);
+            });
+            ic.appendChild(sl);
+          });
+          card.appendChild(ic);
+
+          playerCards.appendChild(card);
+        });
+      }
+
+      // DETERMINE MINIGAME TYPE
+      function determineMinigameType(){
+        const teamOf={
+          "Blue Space":"blue","Lucky Space":"blue",
+          "Red Space":"red","Unluck Space":"red",
+          "Bowser Space":"red"
+        };
+        const blue=[], red=[], green=[];
+        players.forEach(p=>{
+          const t=teamOf[p.lastSpace]||"green";
+          (t==="blue"?blue:t==="red"?red:green).push(p.name);
+        });
+        let cat="FFA";
+        if(blue.length===2&&red.length===2&&green.length===0) cat="2 vs 2";
+        else if([blue.length,red.length,green.length].some(x=>x===1)
+             && ([blue.length,red.length,green.length].reduce((a,b)=>a+b,0)-Math.max(...[blue.length,red.length,green.length]))===3)
+          cat="1 vs 3";
+        const modal=document.getElementById("minigameModal");
+        document.getElementById("minigameText").textContent=cat;
+        const detEl=document.getElementById("minigameDetails"); detEl.innerHTML="";
+        if(cat==="2 vs 2"){
+          detEl.innerHTML=`<strong>Blue Team:</strong> ${blue.join(", ")}<br>`
+                        +`<strong>Red Team:</strong> ${red.join(", ")}`;
+        } else if(cat==="1 vs 3"){
+          let solo,three,label;
+          if(blue.length===1){ solo=blue; three=red.concat(green); label="Blue"; }
+          else if(red.length===1){ solo=red; three=blue.concat(green); label="Red"; }
+          else { solo=green; three=blue.concat(red); label="Green"; }
+          detEl.innerHTML=`<strong>${label} (1):</strong> ${solo.join(", ")}<br>`
+                        +`<strong>Other (3):</strong> ${three.join(", ")}`;
+        }
+        modal.style.display="flex";
+        window._lastMinigameCategory=cat;
+      }
+
+      // STAT MENU
+      function showStatMenu(anchor, idx, key){
+        const old=document.getElementById("statMenu"); if(old) old.remove();
+        const m=document.createElement("div"); m.id="statMenu"; m.className="stat-menu";
+        const inp=document.createElement("input"); inp.type="number"; inp.placeholder="0";
+        const pBtn=document.createElement("button"); pBtn.textContent="+";
+        const mBtn=document.createElement("button"); mBtn.textContent="–";
+        const sBtn=document.createElement("button"); sBtn.textContent="Set";
+        pBtn.addEventListener("click",()=>{
+          const d=parseInt(inp.value,10)||0; if(d>0){
+            if(key==="coins") players[idx].stats.coinsGained+=d;
+            if(key==="stars") players[idx].stats.starsGained+=d;
+            players[idx][key]+=d;
+          }
+          renderPlayers(); m.remove(); document.removeEventListener("click",cb);
+        });
+        mBtn.addEventListener("click",()=>{
+          const d=parseInt(inp.value,10)||0;
+          players[idx][key]=Math.max(0,players[idx][key]-d);
+          renderPlayers(); m.remove(); document.removeEventListener("click",cb);
+        });
+        sBtn.addEventListener("click",()=>{
+          const v=parseInt(inp.value,10);
+          if(!isNaN(v)&&v>=0){
+            const diff=v-players[idx][key];
+            if(diff>0){
+              if(key==="coins") players[idx].stats.coinsGained+=diff;
+              if(key==="stars") players[idx].stats.starsGained+=diff;
+            }
+            players[idx][key]=v;
+          }
+          renderPlayers(); m.remove(); document.removeEventListener("click",cb);
+        });
+        m.append(inp,pBtn,mBtn,sBtn);
+        document.body.appendChild(m);
+        const r=anchor.getBoundingClientRect();
+        m.style.top=(r.bottom+window.scrollY)+"px";
+        m.style.left=(r.left+window.scrollX)+"px";
+        function cb(e){ if(!m.contains(e.target)&&e.target!==anchor){ m.remove(); document.removeEventListener("click",cb); } }
+        setTimeout(()=>document.addEventListener("click",cb),0);
+      }
+
+      // ITEM MENU
+      function showItemMenu(anchor,pIdx,slotIdx){
+        const old=document.getElementById("itemMenu"); if(old) old.remove();
+        const m=document.createElement("div"); m.id="itemMenu"; m.className="item-menu";
+        const randBtn=document.createElement("button"); randBtn.className="random-btn"; randBtn.textContent="Single Random Item";
+        randBtn.addEventListener("click",()=>{
+          const choice=items[Math.floor(Math.random()*items.length)];
+          players[pIdx].items[slotIdx]=choice; renderPlayers(); m.remove(); document.removeEventListener("click",cb);
+        });
+        m.appendChild(randBtn);
+        items.forEach(name=>{
+          const img=document.createElement("img");
+          img.src=`./item_images/${itemImages[name]}`;
+          img.title=name;
+          img.addEventListener("click",()=>{
+            players[pIdx].items[slotIdx]=name; renderPlayers(); m.remove(); document.removeEventListener("click",cb);
+          });
+          m.appendChild(img);
+        });
+        const bag=document.createElement("button"); bag.className="bag-btn"; bag.textContent="Item Bag";
+        bag.addEventListener("click",()=>{
+          players[pIdx].items=players[pIdx].items.map(it=>it||items[Math.floor(Math.random()*items.length)]);
+          renderPlayers(); m.remove(); document.removeEventListener("click",cb);
+        });
+        m.appendChild(bag);
+        document.body.appendChild(m);
+        const r=anchor.getBoundingClientRect();
+        m.style.top=(r.bottom+window.scrollY)+"px";
+        m.style.left=(r.left+window.scrollX)+"px";
+        function cb(e){ if(!m.contains(e.target)&&e.target!==anchor){ m.remove(); document.removeEventListener("click",cb); } }
+        setTimeout(()=>document.addEventListener("click",cb),0);
+      }
+
+      // ITEM ACTION MENU
+      function showItemActionMenu(anchor,pIdx,slotIdx){
+        const old=document.getElementById("itemActionMenu"); if(old) old.remove();
+        const m=document.createElement("div"); m.id="itemActionMenu";
+        m.style.position="absolute"; m.style.background="#333";
+        m.style.border="1px solid #fff"; m.style.borderRadius="6px";
+        m.style.padding="8px"; m.style.zIndex=1000;
+        m.innerHTML=`
+          <button id="useItemBtn" style="margin:4px;padding:4px 8px;">Use</button>
+          <button id="discardItemBtn" style="margin:4px;padding:4px 8px;">Discard</button>`;
+        document.body.appendChild(m);
+        const r=anchor.getBoundingClientRect();
+        m.style.top=(r.bottom+window.scrollY)+"px";
+        m.style.left=(r.left+window.scrollX)+"px";
+        document.getElementById("useItemBtn").addEventListener("click",()=>{
+          players[pIdx].stats.itemsUsed++;
+          players[pIdx].items[slotIdx]=null;
+          renderPlayers(); m.remove();
+        });
+        document.getElementById("discardItemBtn").addEventListener("click",()=>{
+          players[pIdx].items[slotIdx]=null;
+          renderPlayers(); m.remove();
+        });
+        function cb(e){ if(!m.contains(e.target)&&e.target!==anchor){ m.remove(); document.removeEventListener("click",cb); } }
+        setTimeout(()=>document.addEventListener("click",cb),0);
+      }
+
+      // HIDDEN BLOCK
+      const hbOptions=["10 Coins","20 Coins","Random Item","1 Star","1 Ztar"];
+      function showHiddenBlockMenu(){
+        const old=document.getElementById("hbMenu"); if(old) old.remove();
+        const menu=document.createElement("div"); menu.id="hbMenu"; menu.className="hidden-block-menu";
+        const span=document.createElement("span"); menu.append(span); document.body.appendChild(menu);
+        let idx=0,cycle=setInterval(()=>{
+          span.textContent=hbOptions[idx]; idx=(idx+1)%hbOptions.length;
+        },200);
+        setTimeout(()=>{
+          clearInterval(cycle);
+          const choice=hbOptions[Math.floor(Math.random()*hbOptions.length)];
+          span.textContent=choice; menu.style.pointerEvents='auto';
+          function cb(e){ if(!menu.contains(e.target)){ menu.remove(); document.removeEventListener("click",cb); } }
+          document.addEventListener('click',cb);
+        },2000);
+      }
+
+      // CYCLING MENU
+      function showCyclingMenu(options){
+        const old=document.getElementById("cycleMenu"); if(old) old.remove();
+        const menu=document.createElement("div"); menu.id="cycleMenu"; menu.className="cycle-menu";
+        const span=document.createElement("span"); menu.append(span); document.body.appendChild(menu);
+        let idx=0,cycle=setInterval(()=>{
+          span.textContent=options[idx]; idx=(idx+1)%options.length;
+        },200);
+        setTimeout(()=>{
+          clearInterval(cycle);
+          const rare=options.filter(o=>/star/i.test(o)||o==="0 Coins");
+          const norm=options.filter(o=>!rare.includes(o));
+          const choice=(rare.length&&Math.random()<0.01?rare:norm)[Math.floor(Math.random()*(rare.length&&Math.random()<0.01?rare:norm).length)];
+          span.textContent=choice; menu.style.pointerEvents='auto';
+          function cb(e){ if(!menu.contains(e.target)){ menu.remove(); document.removeEventListener("click",cb); } }
+          document.addEventListener('click',cb);
+        },2000);
+      }
+
+      const luckyOptions=[
+        "Receive 5 coins","Receive 10 coins","Receive 15 coins",
+        "Steal 5 coins from a random player","Steal 10 coins from the player in the lead",
+        "Choose one player to steal 5 coins from","Receive Double Dice","Receive Triple Dice",
+        "Next Star is Half Off","Receive Skeleton Key","Star"
+      ];
+      const unluckyOptions=[
+        "Lose 3 coins","Lose 5 coins","Lose 7 coins",
+        "Give one item to the last place player","Give 3 coins to the last place player",
+        "Give 5 coins to the last place player","Give 7 coins to the last place player","Lose a star"
+      ];
+      const bowserOptions=[
+        "Lose 5 coins","Lose 10 coins","Lose half of your coins",
+        "Give 5 coins to the poorest player","Give 10 coins to a random player",
+        "Choose a player and give them 15 coins","Everyone loses 10 coins","Lose 1 star",
+        "Revolution","Star is Moved","Swap your position with the player in last place",
+        "Shuffle","Bowser Minigame"
+      ];
+      const bowserMinigames=[
+        "Lie To Me","Nukes Beats Rock","Ro-Sham-NO!","Pokéathlon","W.P.M.",
+        "Bot Gambling","Feuding with Google","Deadmonton","Got Your Number?","It's a Felix",
+        "Sprocle Off","Off to the Races","A Moment in Time","Should You Open It?","Silver Lining",
+        "Clicker Masher","Squirdle","Magic the Gacharing"
+      ];
+      const versusOptions=["0 Coins","5 Coins","10 Coins","15 Coins","20 Coins","40 Coins"];
+      function showLuckyMenu(){ showCyclingMenu(luckyOptions); }
+      function showUnluckyMenu(){ showCyclingMenu(unluckyOptions); }
+      function showBowserMenu(){ showCyclingMenu(bowserOptions); }
+      function showBowserMinigameMenu(){ showCyclingMenu(bowserMinigames); }
+      function showVersusMenu(){ showCyclingMenu(versusOptions); }
+
+      // BOO LOGIC
+      (function(){
+        const minSteal=8,maxSteal=18,maxMash=60,timeLimit=5000;
+        let mash=0,start=0,started=false,ended=false;
+        const overlay=document.getElementById('booOverlay'),
+              canvas=document.getElementById('booCanvas'),
+              ctx=canvas.getContext('2d'),
+              msg=document.getElementById('booMessage');
+        function reset(){ mash=0;started=false;ended=false;msg.style.display='none';overlay.style.display='flex'; }
+        function finish(){ ended=true;
+          let ratio=Math.min(mash,maxMash)/maxMash,
+              st=Math.round(maxSteal-ratio*(maxSteal-minSteal));
+          st=Math.max(minSteal,Math.min(maxSteal,st));
+          msg.textContent=`Boo stole ${st} coin${st===1?'':'s'}!`; msg.style.display='block';
+        }
+        function update(){ if(!started||ended)return; if(Date.now()-start>=timeLimit) finish(); }
+        function drawBoo(){
+          const x=canvas.width/2,y=150,size=40;
+          ctx.fillStyle='white';ctx.beginPath();ctx.arc(x,y,size,Math.PI,0);
+          ctx.lineTo(x+size,y+size);ctx.lineTo(x-size,y+size);
+          ctx.closePath();ctx.fill();
+          ctx.fillStyle='black';ctx.beginPath();
+          ctx.arc(x-15,y-10,8,0,2*Math.PI);ctx.arc(x+15,y-10,8,0,2*Math.PI);
+          ctx.fill();
+        }
+        function draw(){
+          ctx.clearRect(0,0,600,400);
+          if(!started){
+            ctx.fillStyle='#fff';ctx.font='24px sans-serif';
+            ctx.textAlign='center';ctx.textBaseline='middle';
+            ctx.fillText('Press SPACE to Start',300,200);
+            return;
+          }
+          drawBoo();
+          const mW=400,mH=20,mX=100,mY=300;
+          ctx.strokeStyle='#fff';ctx.strokeRect(mX,mY,mW,mH);
+          ctx.fillStyle='cyan';ctx.fillRect(mX,mY,(mash/maxMash)*mW,mH);
+          const tW=(1-Math.min((Date.now()-start)/timeLimit,1))*mW;
+          ctx.fillStyle='red';ctx.fillRect(mX,mY-30,tW,10);
+          ctx.strokeRect(mX,mY-30,mW,10);
+        }
+        function loop(){ update(); draw(); if(!ended) requestAnimationFrame(loop); }
+        document.addEventListener('keydown',e=>{
+          if(overlay.style.display!=='flex'||ended)return;
+          if(!started){ if(e.code==='Space'){ started=true; start=Date.now(); } return; }
+          if(e.code==='Space'){ mash++; if(mash>=maxMash) start=Date.now()-timeLimit; }
+        });
+        overlay.addEventListener('click',()=>{ if(ended) overlay.style.display='none'; });
+        window.showBooMinigame=()=>{ reset(); loop(); };
+      })();
+
+      // CHANCE TIME LOGIC
+      const ctOptions=[
+        {type:'coins',amount:3},{type:'coins',amount:20},{type:'coins',amount:30},
+        {type:'stars',amount:1},{type:'all',item:'coins'},{type:'all',item:'stars'},{type:'all',item:'both'}
+      ];
+      const ctDirs=['←','→'];
+      const chanceOverlay=document.getElementById('chanceOverlay'),
+            ctStartBtn=document.getElementById('ctStartBtn'),
+            ctSetupDiv=document.getElementById('chanceSetup'),
+            ctGameDiv=document.getElementById('chanceGame');
+      let ctPlayers=[],ctSel={},ctDisp={},ctSpin={},ctInt={};
+
+      ctStartBtn.addEventListener('click',()=>{
+        ctPlayers=players.map(p=>({name:p.name,image:p.img}));
+        if(ctPlayers.length<2) return;
+        ctSetupDiv.style.display='none';
+        ctGameDiv.style.display='block';
+        chanceOverlay.style.display='flex';
+      });
+      function ctReroll(){
+        document.getElementById('ctResultCard').style.display='none';
+        ['left','item','right'].forEach(f=>{
+          ctSel[f]=undefined; ctDisp[f]='???';
+          document.getElementById(`ct${f[0].toUpperCase()+f.slice(1)}Display`).textContent='???';
+          const img=document.getElementById(`ct${f[0].toUpperCase()+f.slice(1)}Image`);
+          img.style.visibility='hidden';
+          document.getElementById(`ct${f[0].toUpperCase()+f.slice(1)}Start`).style.display='inline-block';
+          document.getElementById(`ct${f[0].toUpperCase()+f.slice(1)}Stop`).style.display='none';
+        });
+      }
+      document.getElementById('ctRerollBtn').addEventListener('click',ctReroll);
+      function ctGetItemFilename(label){
+        if(label.startsWith('↔')){
+          if(label.includes('both')) return '120px-Exchange_coins_and_Stars_Chance_Time_MPS.png';
+          if(label.includes('coins')) return '120px-Exchange_Coins_Chance_Time_MPS.png';
+          if(label.includes('stars')) return '120px-Exchange_Stars_Chance_Time_MPS.png';
+        } else {
+          const [dir,amt,type]=label.split(' ');
+          let cap=type.charAt(0).toUpperCase()+type.slice(1);
+          if(cap==='Stars') cap='Star';
+          return `120px-${dir==='←'?'Left':'Right'}_${amt}_${cap}_Chance_Time_MPS.png`;
+        }
+      }
+      function ctStartSpin(field){
+        if(ctSpin[field]) return; ctSpin[field]=true;
+        document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Start`).style.display='none';
+        document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Stop`).style.display='inline-block';
+        const img=document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Image`);
+        img.classList.add('spinning');
+        ctInt[field]=setInterval(()=>{
+          if(field==='item'){
+            const opt=ctOptions[Math.floor(Math.random()*ctOptions.length)];
+            let lab;
+            if(opt.type==='all') lab=`↔ all ${opt.item}`;
+            else {
+              const dir=ctDirs[Math.floor(Math.random()*ctDirs.length)];
+              const plural=opt.amount===1?opt.type.slice(0,-1):opt.type;
+              lab=`${dir} ${opt.amount} ${plural}`;
+            }
+            ctDisp.item=lab; document.getElementById('ctItemDisplay').textContent=lab;
+            const fn=ctGetItemFilename(lab);
+            img.src=`chance_images/${fn}`; img.style.visibility='visible';
+          } else {
+            const exclude=field==='left'&&ctSel.right?[ctSel.right.name]:field==='right'&&ctSel.left?[ctSel.left.name]:[];
+            let cand;
+            do{ cand=ctPlayers[Math.floor(Math.random()*ctPlayers.length)]; }
+            while(exclude.includes(cand.name));
+            ctDisp[field]=cand; document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Display`).textContent=cand.name;
+            img.src=cand.image||''; img.style.visibility=cand.image?'visible':'hidden';
+          }
+        },100);
+      }
+      function ctStopSpin(field){
+        clearInterval(ctInt[field]); ctSpin[field]=false;
+        const startBtn=document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Start`);
+        const stopBtn=document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Stop`);
+        const img=document.getElementById(`ct${field[0].toUpperCase()+field.slice(1)}Image`);
+        startBtn.style.display='none'; stopBtn.style.display='none'; img.classList.remove('spinning');
+        if(field==='item'){
+          const lab=ctDisp.item;
+          if(lab.startsWith('↔')){
+            const type=lab.split(' ')[2]; ctSel.item={type:'all',item:type};
+          } else {
+            const [dir,amt,type]=lab.split(' '); ctSel.item={type,amount:parseInt(amt),direction:dir};
+          }
+        } else ctSel[field]=ctDisp[field];
+
+        if(ctSel.left&&ctSel.right&&ctSel.item){
+          const {left,right,item}=ctSel; let text='';
+          if(item.type==='all'){
+            const act=item.item==='both'?'all coins and stars':`all ${item.item}`;
+            text=`${left.name} and ${right.name} swap ${act}.`;
+          } else {
+            const giver=item.direction==='←'?right.name:left.name;
+            const recv=item.direction==='←'?left.name:right.name;
+            text=`${giver} gives ${item.amount} ${item.amount===1&&item.type==='star'?'star':item.type} to ${recv}.`;
+          }
+          document.getElementById('ctResultText').textContent=text;
+          document.getElementById('ctResultCard').style.display='block';
+        }
+      }
+      ['left','item','right'].forEach(f=>{
+        document.getElementById(`ct${f[0].toUpperCase()+f.slice(1)}Start`).addEventListener('click',()=>ctStartSpin(f));
+        document.getElementById(`ct${f[0].toUpperCase()+f.slice(1)}Stop`).addEventListener('click',()=>ctStopSpin(f));
+      });
+      chanceOverlay.addEventListener('click', e=>{
+        if(e.target===chanceOverlay){
+          chanceOverlay.style.display='none';
+          ctSetupDiv.style.display='block';
+          ctGameDiv.style.display='none';
+          document.getElementById('ctResultCard').style.display='none';
+          ctPlayers=[];
+        }
+      });
+
+      // FILTER BUTTONS
+      document.querySelectorAll('.filter-buttons button').forEach(btn=>{
+        const space=btn.dataset.space;
+        if(space==='Boo Space') btn.addEventListener('click',()=>showBooMinigame());
+        else if(space==='Hidden Block') btn.addEventListener('click',showHiddenBlockMenu);
+        else if(space==='Chance Time Space') btn.addEventListener('click',()=>chanceOverlay.style.display='flex');
+        else if(space==='Lucky Space') btn.addEventListener('click',showLuckyMenu);
+        else if(space==='Unluck Space') btn.addEventListener('click',showUnluckyMenu);
+        else if(space==='Bowser Space') btn.addEventListener('click',showBowserMenu);
+        else if(space==='Bowser Minigame') btn.addEventListener('click',showBowserMinigameMenu);
+        else if(space==='VS Space') btn.addEventListener('click',showVersusMenu);
+      });
+
+      // RANDOMIZER
+      randomBtn.addEventListener('click',()=>{
+        randomList.innerHTML="";
+        players.forEach((p,i)=>{
+          randomList.innerHTML+=`<div><label><input type="checkbox" value="${i}" checked> ${p.name}</label></div>`;
+        });
+        randomCount.max=players.length; randomCount.value=1;
+        randomResult.style.display='none'; randomForm.style.display='block';
+        randomModal.style.display='flex';
+      });
+      randomChoose.addEventListener('click',()=>{
+        const checked=[...randomList.querySelectorAll('input:checked')].map(cb=>+cb.value);
+        const cnt=Math.min(+randomCount.value||1,checked.length);
+        for(let i=checked.length-1;i>0;i--){
+          const j=Math.floor(Math.random()*(i+1)); [checked[i],checked[j]]=[checked[j],checked[i]];
+        }
+        randomResultList.innerHTML="";
+        checked.slice(0,cnt).forEach(i=>randomResultList.innerHTML+=`<li>${players[i].name}</li>`);
+        randomForm.style.display='none'; randomResult.style.display='block';
+      });
+      randomClose.addEventListener('click',()=>randomModal.style.display='none');
+      randomModal.addEventListener('click',e=>{ if(e.target===randomModal) randomModal.style.display='none'; });
+
+      // MINIGAME OK -> VOTE
+      document.getElementById('minigameOk').addEventListener('click',()=>{
+        document.getElementById('minigameModal').style.display='none';
+        showVoteModal(window._lastMinigameCategory);
+      });
+
+      // STATISTICS
+      statsBtn.addEventListener('click',()=>{
+        renderStats('All'); statsModal.style.display='block';
+      });
+      statsClose.addEventListener('click',()=>statsModal.style.display='none');
+
+      function renderStats(filter){
+        statsContent.innerHTML="";
+        players.forEach(p=>{
+          const div=document.createElement('div'); div.className='player-stats';
+          const h4=document.createElement('h4'); h4.textContent=p.name;
+          const ul=document.createElement('ul');
+          if(!filter||filter==='All'){
+            [
+              ['Coins Gained',p.stats.coinsGained],
+              ['Stars Gained',p.stats.starsGained],
+              ['Spaces Moved',p.stats.spacesMoved],
+              ['Items Used',p.stats.itemsUsed],
+              ['Minigames Won',p.stats.minigamesWon]
+            ].forEach(([lbl,val])=>{
+              const li=document.createElement('li'); li.textContent=`${lbl}: ${val}`; ul.appendChild(li);
+            });
+            Object.entries(p.stats.landings).forEach(([sp,cnt])=>{
+              const li=document.createElement('li'); li.textContent=`${sp}: ${cnt}`; ul.appendChild(li);
+            });
+          } else {
+            const cnt=p.stats.landings[filter]||0;
+            const li=document.createElement('li'); li.textContent=`${filter}: ${cnt}`; ul.appendChild(li);
+          }
+          div.append(h4,ul); statsContent.appendChild(div);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
