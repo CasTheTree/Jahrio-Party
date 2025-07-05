@@ -264,9 +264,9 @@
 
   <!-- STEP 1 -->
   <div class="player-count-screen">
-    <h1>Enter Number of Players (2–8)</h1>
+    <h1>Enter Number of Players (4–6)</h1>
     <form id="playerCountForm">
-      <input type="number" id="playerCount" min="2" max="8" value="4" required>
+      <input type="number" id="playerCount" min="4" max="6" value="4" required>
       <button type="submit">Next</button>
     </form>
   </div>
@@ -309,6 +309,7 @@
     <button data-space="Bowser Minigame">Bowser Minigame</button>
     <button data-space="Hidden Block">Hidden Block</button>
     <button data-space="VS Space">Versus Space</button>
+	<button data-space="Duel Minigame">Duel Minigame</button>
   </div>
 
   <!-- Effects Modal (Final-5) -->
@@ -475,7 +476,13 @@ const MINIGAMES = {
     "Pokedoku","Sprocle Off","Squirdle","Taboo's the Word","Telepathy",
     "Them's the Name","Who's More Likely","Wi Find the Ki Path"
   ],
-  "1 vs 3": [
+  "Teams": [
+    "Back Draw","Blind Smash","Charades Me","Duo Kart","Everyone's a Comedian",
+    "Exceeding Expectations","JCharades","Make a face.","Math's of Glory",
+    "Pokedoku","Sprocle Off","Squirdle","Taboo's the Word","Telepathy",
+    "Them's the Name","Who's More Likely","Wi Find the Ki Path"
+  ],
+  "1 vs All": [
     "Blame the Same","Deadmonton","Hang the Man","Hidden Box","It's a Felix",
     "Lie To Me","Pokéathlon","Reverse Lies","Ro-Sham-NO!","Scattegories",
     "Spelling Bee","Statistially Rolling","Tele-Focus","Who Has the Item?",
@@ -696,10 +703,10 @@ const MINIGAMES = {
       pcForm.addEventListener("submit", e=>{
         e.preventDefault();
         const c=+pCnt.value;
-        if(c>=2&&c<=8){
+        if(c>=4&&c<=6){
           pcForm.parentNode.style.display="none";
           tcForm.parentNode.style.display="block";
-        } else alert("Enter 2–8 players");
+        } else alert("Enter 4–6 players");
       });
 
       // STEP2
@@ -912,40 +919,116 @@ function nextTurn() {
         });
       }
 
-      // DETERMINE MINIGAME TYPE
-      function determineMinigameType(){
-        const teamOf={
-          "Blue Space":"blue","Lucky Space":"blue",
-          "Red Space":"red","Unluck Space":"red",
-          "Bowser Space":"red"
-        };
-        const blue=[], red=[], green=[];
-        players.forEach(p=>{
-          const t=teamOf[p.lastSpace]||"green";
-          (t==="blue"?blue:t==="red"?red:green).push(p.name);
-        });
-        let cat="FFA";
-        if(blue.length===2&&red.length===2&&green.length===0) cat="2 vs 2";
-        else if([blue.length,red.length,green.length].some(x=>x===1)
-             && ([blue.length,red.length,green.length].reduce((a,b)=>a+b,0)-Math.max(...[blue.length,red.length,green.length]))===3)
-          cat="1 vs 3";
-        const modal=document.getElementById("minigameModal");
-        document.getElementById("minigameText").textContent=cat;
-        const detEl=document.getElementById("minigameDetails"); detEl.innerHTML="";
-        if(cat==="2 vs 2"){
-          detEl.innerHTML=`<strong>Blue Team:</strong> ${blue.join(", ")}<br>`
-                        +`<strong>Red Team:</strong> ${red.join(", ")}`;
-        } else if(cat==="1 vs 3"){
-          let solo,three,label;
-          if(blue.length===1){ solo=blue; three=red.concat(green); label="Blue"; }
-          else if(red.length===1){ solo=red; three=blue.concat(green); label="Red"; }
-          else { solo=green; three=blue.concat(red); label="Green"; }
-          detEl.innerHTML=`<strong>${label} (1):</strong> ${solo.join(", ")}<br>`
-                        +`<strong>Other (3):</strong> ${three.join(", ")}`;
-        }
-        modal.style.display="flex";
-        window._lastMinigameCategory=cat;
-      }
+		// DETERMINE MINIGAME TYPE
+		function determineMinigameType() {
+		  // which spaces count as Blue vs Red
+		  const blueSpaces = new Set(["Blue Space", "Lucky Space"]);
+		  const redSpaces  = new Set(["Red Space", "Unluck Space", "Bowser Space"]);
+
+		  // assign each player a side (blue/red), randomizing undesignated ones
+		  const assignment = {};
+		  players.forEach(p => {
+			if (blueSpaces.has(p.lastSpace))      assignment[p.name] = 'blue';
+			else if (redSpaces.has(p.lastSpace))  assignment[p.name] = 'red';
+			else                                   assignment[p.name] = Math.random() < 0.5 ? 'blue' : 'red';
+		  });
+
+		  // count them
+		  const blueCount = players.filter(p => assignment[p.name] === 'blue').length;
+		  const redCount  = players.filter(p => assignment[p.name] === 'red').length;
+		  const total     = players.length;
+
+		  // pick category
+		  let category;
+		  if (total === 4) {
+			// classic MP 4-player
+			const key4 = `${blueCount}-${redCount}`;
+			const map4 = {
+			  "0-4": "FFA",
+			  "1-3": "1 vs All",
+			  "2-2": "2 vs 2",
+			  "3-1": "1 vs All",
+			  "4-0": "FFA",
+			};
+			category = map4[key4] || "FFA";
+		  }
+		  else if (total === 6) {
+			// 20% forced FFA
+			if (Math.random() < 0.2) {
+			  category = "FFA";
+			} else {
+			  const key6 = `${blueCount}-${redCount}`;
+			  const map6 = {
+				"0-6": "FFA",
+				"1-5": "1 vs All",
+				"2-4": "Teams",
+				"3-3": "Teams",
+				"4-2": "Teams",
+				"5-1": "1 vs All",
+				"6-0": "FFA"
+			  };
+			  category = map6[key6] || "FFA";
+			}
+		  }
+		  else {
+			category = "FFA"; // fallback
+		  }
+
+		  // populate modal header
+		  const modal = document.getElementById("minigameModal");
+		  document.getElementById("minigameText").textContent = category;
+
+		  // build details
+		  let details = "";
+		  if (category === "FFA") {
+			// nothing extra
+		  }
+		  else if (category === "1 vs All") {
+  // Solo = the single player on the minority side (works for both 4p and 6p)
+  // Determine which side has only one player
+  const minoritySide = blueCount < redCount ? 'blue' : 'red';
+  // Find the one player on that side
+  const solo = players.find(p => assignment[p.name] === minoritySide);
+  // Everyone else
+  const others = players.filter(p => p.name !== solo.name);
+  // Build details
+  details = `
+    <strong>Solo:</strong> ${solo.name}<br>
+    <strong>All Others (${others.length}):</strong> ${others.map(p => p.name).join(", ")}
+  `;
+}
+	  else {
+			// Teams (2v2 or 6-player Teams)
+			const blueTeam = [], redTeam = [];
+			players.forEach(p => {
+			  if (assignment[p.name] === 'blue') blueTeam.push(p.name);
+			  else                                redTeam.push(p.name);
+			});
+
+			// for unbalanced 6-player Teams, shift one over
+			if (total === 6 && category === "Teams") {
+			  if (blueCount === 2 && redCount === 4) {
+				const i = Math.floor(Math.random() * redTeam.length);
+				blueTeam.push(redTeam.splice(i, 1)[0]);
+			  }
+			  else if (blueCount === 4 && redCount === 2) {
+				const i = Math.floor(Math.random() * blueTeam.length);
+				redTeam.push(blueTeam.splice(i, 1)[0]);
+			  }
+			}
+
+			details = `
+			  <strong>Blue Team (${blueTeam.length}):</strong> ${blueTeam.join(", ")}<br>
+			  <strong>Red Team (${redTeam.length}):</strong> ${redTeam.join(", ")}
+			`;
+		  }
+
+		  // show it
+		  document.getElementById("minigameDetails").innerHTML = details;
+		  modal.style.display = "flex";
+		  window._lastMinigameCategory = category;
+		}
+
 
       // STAT MENU
       function showStatMenu(anchor, idx, key){
@@ -1103,6 +1186,7 @@ function nextTurn() {
         },2000);
       }
 
+
       // CYCLING MENU
       function showCyclingMenu(options){
         const old=document.getElementById("cycleMenu"); if(old) old.remove();
@@ -1140,6 +1224,16 @@ function nextTurn() {
         "Revolution","Star is Moved","Swap your position with the player in last place",
         "Shuffle","Bowser Minigame"
       ];
+	  const duelMinigames = [
+  "4 in a Row",
+  "Armed and Danger-less",
+  "Call to Order",
+  "Exceeding Expectations",
+  "Got Your Number?",
+  "Let's Go for Lego",
+  "Repetition Hesitation"
+];
+
       const bowserMinigames=[
         "Lie To Me","Nukes Beats Rock","Ro-Sham-NO!","Pokéathlon","W.P.M.",
         "Bot Gambling","Feuding with Google","Deadmonton","Got Your Number?","It's a Felix",
@@ -1152,6 +1246,8 @@ function nextTurn() {
       function showBowserMenu(){ showCyclingMenu(bowserOptions); }
       function showBowserMinigameMenu(){ showCyclingMenu(bowserMinigames); }
       function showVersusMenu(){ showCyclingMenu(versusOptions); }
+	  function showDuelMinigameMenu() { showCyclingMenu(duelMinigames); }
+
 
       // BOO LOGIC
       (function(){
@@ -1330,6 +1426,7 @@ function nextTurn() {
         else if(space==='Bowser Space') btn.addEventListener('click',showBowserMenu);
         else if(space==='Bowser Minigame') btn.addEventListener('click',showBowserMinigameMenu);
         else if(space==='VS Space') btn.addEventListener('click',showVersusMenu);
+		else if (space === 'Duel Minigame') btn.addEventListener('click', showDuelMinigameMenu);
       });
 
       // RANDOMIZER
