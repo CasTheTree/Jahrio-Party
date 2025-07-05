@@ -1294,7 +1294,11 @@ function nextTurn() {
         document.addEventListener('keydown',e=>{
           if(overlay.style.display!=='flex'||ended)return;
           if(!started){ if(e.code==='Space'){ started=true; start=Date.now(); } return; }
-          if(e.code==='Space'){ mash++; if(mash>=maxMash) start=Date.now()-timeLimit; }
+          if (e.code === 'Space' && !e.repeat) {
+  mash++;
+  if (mash >= maxMash) start = Date.now() - timeLimit;
+}
+
         });
         overlay.addEventListener('click',()=>{ if(ended) overlay.style.display='none'; });
         window.showBooMinigame=()=>{ reset(); loop(); };
