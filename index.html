@@ -338,6 +338,34 @@
       <button id="minigameOk">OK</button>
     </div>
   </div>
+<!-- Versus Wager Modal -->
+<div id="versusWagerModal" class="minigame-modal" style="display:none;">
+  <div class="minigame-card" style="width:350px; max-width:90vw;">
+    <h2>Versus Battle!</h2>
+    <p id="versusWagerText" style="font-weight:bold;"></p>
+    <button id="versusWagerOk">Continue</button>
+  </div>
+</div>
+
+<!-- Versus Placement Modal -->
+<div id="versusPlacementModal" class="minigame-modal" style="display:none;">
+  <div class="minigame-card" style="width:400px; max-width:90vw;">
+    <h2>Assign Placements</h2>
+    <form id="versusPlacementForm">
+      <div id="versusPlacementGrid" style="margin:12px 0;"></div>
+      <button type="submit">Confirm</button>
+    </form>
+  </div>
+</div>
+
+<!-- Versus Result Modal -->
+<div id="versusResultModal" class="minigame-modal" style="display:none;">
+  <div class="minigame-card" style="width:400px; max-width:90vw;">
+    <h2>Versus Results</h2>
+    <div id="versusResultList" style="margin:12px 0;text-align:left;"></div>
+    <button id="versusResultOk">OK</button>
+  </div>
+</div>
 
   <!-- Vote Modal -->
   <div id="voteModal" class="minigame-modal" style="display:none;">
@@ -505,6 +533,7 @@ const MINIGAMES = {
       "Second and Third swap coins and stars."
     ];
     let players = [], totalTurns=20, currentPlayer=0, turnCount=1;
+	let isVersusMinigame = false;
     let _chosenSecondaryEffect=null, _effectsPrompted=false;
 
     function ordinal(n){
@@ -716,16 +745,22 @@ const MINIGAMES = {
         tcForm.parentNode.style.display="none";
         pForm.parentNode.style.display="block";
         playersContainer.innerHTML="";
-        for(let i=0;i<+pCnt.value;i++){
-          const d=document.createElement("div"); d.className="player";
-          d.innerHTML=`
-            <input type="number" name="roll${i}" min="1" max="6" placeholder="Roll"/>
-            <input type="text"   name="name${i}" placeholder="Player ${i+1}"/>
-            <input type="file"   accept="image/*" name="file${i}"/>
-            <input type="text"   name="url${i}" placeholder="Image URL"/>
-          `;
-          playersContainer.appendChild(d);
-        }
+        for(let i=0; i<+pCnt.value; i++){
+		  const d = document.createElement("div"); d.className = "player";
+		  d.innerHTML = `
+			<input type="number" name="roll${i}" min="1" max="6" placeholder="Roll"/>
+			<input type="text"   name="name${i}" placeholder="Player ${i+1}"/>
+			<input type="file"   accept="image/*" name="file${i}"/>
+			<input type="text"   name="url${i}" placeholder="Image URL"/>
+			<div style="display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
+			  🟡 <input type="number" name="coins${i}" min="0" value="10" style="width:50px;" title="Starting Coins"/>
+			  ⭐ <input type="number" name="stars${i}" min="0" value="0" style="width:50px;" title="Starting Stars"/>
+			</div>
+		  `;
+		  playersContainer.appendChild(d);
+		}
+
+
       });
 
       // STEP3
@@ -739,12 +774,24 @@ const MINIGAMES = {
           const name=data.get(`name${i}`).trim()||`Player ${i+1}`;
           const file=data.get(`file${i}`), url=data.get(`url${i}`).trim();
           promises.push(new Promise(res=>{
-            const base={
-              name,img:null,stars:0,coins:0,
-              roll,items:[null,null,null],lastSpace:null,
-              stats:{coinsGained:0,starsGained:0,spacesMoved:0,itemsUsed:0,minigamesWon:0,
-                     landings:spaces.reduce((o,k)=>(o[k]=0,o),{})}
-            };
+            const base = {
+  name,
+  img: null,
+  stars: parseInt(data.get(`stars${i}`), 10) || 0,
+  coins: parseInt(data.get(`coins${i}`), 10) || 0,
+  roll,
+  items: [null, null, null],
+  lastSpace: null,
+  stats: {
+    coinsGained: 0,
+    starsGained: 0,
+    spacesMoved: 0,
+    itemsUsed: 0,
+    minigamesWon: 0,
+    landings: spaces.reduce((o, k) => (o[k]=0,o), {})
+  }
+};
+
             if(file&&file.size){
               const r=new FileReader();
               r.onload=()=>{ base.img=r.result; res(base); };
@@ -1429,7 +1476,7 @@ function nextTurn() {
         else if(space==='Unluck Space') btn.addEventListener('click',showUnluckyMenu);
         else if(space==='Bowser Space') btn.addEventListener('click',showBowserMenu);
         else if(space==='Bowser Minigame') btn.addEventListener('click',showBowserMinigameMenu);
-        else if(space==='VS Space') btn.addEventListener('click',showVersusMenu);
+        else if(space==='VS Space') btn.addEventListener('click',()=>{startVersusBattle();});
 		else if (space === 'Duel Minigame') btn.addEventListener('click', showDuelMinigameMenu);
       });
 
@@ -1461,6 +1508,105 @@ function nextTurn() {
         document.getElementById('minigameModal').style.display='none';
         showVoteModal(window._lastMinigameCategory);
       });
+	  
+	  //versus
+function startVersusBattle() {
+  isVersusMinigame = true; // Versus flow active
+  const options = versusOptions;
+  const randomIndex = Math.floor(Math.random() * options.length);
+  const choice = options[randomIndex];
+const amount = parseInt(choice.split(" ")[0], 10);
+
+// Subtract wager from each player and calculate total pot
+let pot = 0;
+players.forEach(p => {
+  const contribution = Math.min(amount, p.coins);
+  pot += contribution;
+  p.coins -= contribution;
+});
+renderPlayers();
+
+
+  // Show wager modal
+  document.getElementById("versusWagerText").textContent = 
+  `Each player wagers up to ${amount} coins.\nTotal Pot: ${pot} coins`;
+
+  document.getElementById("versusWagerModal").style.display = "flex";
+
+  document.getElementById("versusWagerOk").onclick = () => {
+    document.getElementById("versusWagerModal").style.display = "none";
+
+    // Pick random FFA minigame (no voting)
+    const minigame = MINIGAMES["FFA"][Math.floor(Math.random() * MINIGAMES["FFA"].length)];
+    document.getElementById("minigameText").textContent = minigame;
+    document.getElementById("minigameDetails").innerHTML = "";
+    document.getElementById("minigameModal").style.display = "flex";
+
+    document.getElementById("minigameOk").onclick = () => {
+      document.getElementById("minigameModal").style.display = "none";
+
+      // Directly show placement grid
+      showVersusPlacementModal(amount, pot);
+    };
+  };
+}
+
+function showVersusPlacementModal(amount, pot) {
+  const grid = document.getElementById("versusPlacementGrid");
+  grid.innerHTML = "";
+
+  let html = '<table style="border-collapse:collapse;width:100%;">';
+  html += "<thead><tr><th></th>";
+
+  for (let i = 1; i <= players.length; i++) {
+    html += `<th style="border:1px solid #fff;padding:6px;">${i}${ordinal(i)}</th>`;
+  }
+  html += "</tr></thead><tbody>";
+
+  players.forEach((p, idx) => {
+    html += `<tr><td style="border:1px solid #fff;padding:6px;text-align:left;">${p.name}</td>`;
+    for (let place = 1; place <= players.length; place++) {
+      html += `<td style="border:1px solid #fff;padding:6px;text-align:center;">
+        <input type="radio" name="place_${idx}" value="${place}" required>
+      </td>`;
+    }
+    html += "</tr>";
+  });
+
+  html += "</tbody></table>";
+  grid.innerHTML = html;
+
+  document.getElementById("versusPlacementModal").style.display = "flex";
+
+  document.getElementById("versusPlacementForm").onsubmit = (e) => {
+    e.preventDefault();
+
+    // Gather placements
+    const placements = players.map((p, idx) => {
+      const radio = document.querySelector(`input[name="place_${idx}"]:checked`);
+      return { player: p, place: parseInt(radio.value, 10) };
+    });
+
+    // Sort and award coins
+    placements.sort((a, b) => a.place - b.place);
+    const payouts = [0.5, 0.3, 0.2, 0]; // % of pot for 1st, 2nd, 3rd
+    const resultHtml = placements.map((p, i) => {
+      const reward = Math.round(pot * (payouts[i] || 0));
+      p.player.coins += reward;
+      return `<p><strong>${p.player.name} (${p.place}${ordinal(p.place)}):</strong> ${reward} coins</p>`;
+    }).join("");
+
+    renderPlayers();
+
+    document.getElementById("versusPlacementModal").style.display = "none";
+    document.getElementById("versusResultList").innerHTML = resultHtml;
+    document.getElementById("versusResultModal").style.display = "flex";
+
+    document.getElementById("versusResultOk").onclick = () => {
+      document.getElementById("versusResultModal").style.display = "none";
+    };
+  };
+}
 
 function awardBonusStars() {
   const BONUS_CATEGORIES = [
