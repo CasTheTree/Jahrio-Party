@@ -763,7 +763,7 @@ const MINIGAMES = {
         for(let i=0; i<+pCnt.value; i++){
 		  const d = document.createElement("div"); d.className = "player";
 		  d.innerHTML = `
-			<input type="number" name="roll${i}" min="1" max="6" placeholder="Roll"/>
+			<input type="number" name="roll${i}" min="1" max="10" placeholder="Roll"/>
 			<input type="text"   name="name${i}" placeholder="Player ${i+1}"/>
 			<input type="file"   accept="image/*" name="file${i}"/>
 			<input type="text"   name="url${i}" placeholder="Image URL"/>
