@@ -763,10 +763,10 @@ const MINIGAMES = {
         for(let i=0; i<+pCnt.value; i++){
 		  const d = document.createElement("div"); d.className = "player";
 		  d.innerHTML = `
-			<input type="number" name="roll${i}" min="1" max="10" placeholder="Roll"/>
+			<input type="number" name="roll${i}" min="1" max="6" placeholder="Roll"/>
 			<input type="text"   name="name${i}" placeholder="Player ${i+1}"/>
 			<input type="file"   accept="image/*" name="file${i}"/>
-			<input type="text"   name="url${i}" placeholder="or Image URL"/>
+			<input type="text"   name="url${i}" placeholder="Image URL"/>
 			<div style="display:inline-flex; align-items:center; gap:6px; margin-top:4px;">
 			  🟡 <input type="number" name="coins${i}" min="0" value="10" style="width:50px;" title="Starting Coins"/>
 			  ⭐ <input type="number" name="stars${i}" min="0" value="0" style="width:50px;" title="Starting Stars"/>
@@ -1287,15 +1287,14 @@ function nextTurn() {
         "Shuffle","Bowser Minigame"
       ];
 	  const duelMinigames = [
-  "4 in a Row", "Armed and Danger-less", "Call to Order", "Exceeding Expectations", "Got Your Number?",
+    "4 in a Row", "Armed and Danger-less", "Call to Order", "Exceeding Expectations", "Got Your Number?",
     "Let's Go for Lego", "Repetition Hesitation", "You Could Be Mine", "Ace of Base Ten", "Box Clever",
     "Dice Ladder", "Dice Versa", "K Drama", "The Price is Wrong, Bitch", "We All Recall",
     "Welcome to the Juggle", "Will You Bury Me?", "Chain Letter", "Find Four", "Nick of Time"
   ],
-];
 
       const bowserMinigames=[
-        "A Moment in Time", "Bot Gambling", "Clicker Masher", "Deadmonton", "Feuding with Google", "Got Your Number?",
+    "A Moment in Time", "Bot Gambling", "Clicker Masher", "Deadmonton", "Feuding with Google", "Got Your Number?",
     "It's a Felix", "Lie To Me", "Magic the Gacharing", "Nukes Beats Rock", "Off to the Races",
     "Pokéathlon", "Ro-Sham-NO!", "Should You Open It?", "Silver Lining", "Sprocle Off", "Squirdle",
     "W.P.M.", "2 Blockheads Are Better Than 1", "Burn Notice", "Dizzy Body", "404 Not Found", "Like a Boss",
